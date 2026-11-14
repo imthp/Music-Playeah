@@ -5,6 +5,8 @@ qt_add_executable(music_playeah
   main.cpp
   appinfo.cpp
   appinfo.hpp
+  player.cpp
+  player.hpp
 )
 
 # One implementation of platform/window_style.hpp per OS (D22). Windows API calls live only in platform/win/.

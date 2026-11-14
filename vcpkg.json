@@ -3,6 +3,12 @@
   "name": "music-playeah",
   "version-string": "0.1.0",
   "dependencies": [
-    "catch2"
+    "catch2",
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [ "avcodec", "avformat", "swresample" ]
+    },
+    "miniaudio"
   ]
 }

@@ -5,6 +5,7 @@
 #include <QDebug>
 
 #include "platform/window_style.hpp"
+#include "player.hpp"
 
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
@@ -30,6 +31,15 @@ int main(int argc, char* argv[]) {
     }
     if (auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().constFirst())) {
         mp::app::platform::applyDarkTitleBar(window);
+    }
+
+    // Milestone 2 test aid: `music_playeah.exe "D:\Music\Some Album"` opens and plays that folder
+    // (or a file, starting there). Handy as the debug command-line argument in VS / VS Code.
+    const QStringList args = QCoreApplication::arguments();
+    if (args.size() > 1) {
+        if (auto* player = engine.singletonInstance<mp::app::Player*>("MusicPlayeah", "Player")) {
+            player->openPath(args.at(1));
+        }
     }
 
     return app.exec();
