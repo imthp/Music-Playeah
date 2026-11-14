@@ -1,0 +1,23 @@
+# Planning docs stay local (DECISIONS D11)
+HANDOFF.md
+SPEC.md
+DECISIONS.md
+PROGRESS.md
+
+# Build output
+/build/
+/out/
+/vcpkg_installed/
+CMakeUserPresets.json
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+
+# Local config / secrets
+*.local.json
+
+# Learning notes (DECISIONS D17)
+notes/

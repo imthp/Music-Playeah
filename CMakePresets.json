@@ -1,0 +1,51 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolset": { "value": "host=x64", "strategy": "external" },
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "win-debug",
+      "displayName": "Windows Debug",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "win-release",
+      "displayName": "Windows Release",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "win-asan",
+      "displayName": "Windows AddressSanitizer",
+      "description": "RelWithDebInfo + /fsanitize=address (MSVC has no UBSan/TSan, see D7)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "MP_ASAN": "ON",
+        "MP_ASAN_NO_ANNOTATIONS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "win-debug", "configurePreset": "win-debug" },
+    { "name": "win-release", "configurePreset": "win-release" },
+    { "name": "win-asan", "configurePreset": "win-asan" }
+  ],
+  "testPresets": [
+    { "name": "win-debug", "configurePreset": "win-debug", "output": { "outputOnFailure": true } },
+    { "name": "win-release", "configurePreset": "win-release", "output": { "outputOnFailure": true } },
+    { "name": "win-asan", "configurePreset": "win-asan", "output": { "outputOnFailure": true } }
+  ]
+}
