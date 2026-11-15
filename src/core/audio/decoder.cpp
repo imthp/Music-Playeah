@@ -1,5 +1,7 @@
 #include "core/audio/decoder.hpp"
 
+#include "core/text.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -235,7 +237,9 @@ std::unique_ptr<Decoder> Decoder::open(const std::string& utf8Path, int outRate,
     av_channel_layout_default(&d->outLayout, outChannels);
 
     // FFmpeg's file protocol takes UTF-8 on every platform, including Windows.
-    int r = avformat_open_input(&d->fmt, utf8Path.c_str(), nullptr, nullptr);
+    // Paths over 260 characters need the Windows extended-length form (longPathSafe changes nothing else).
+    const std::string openPath = pathToUtf8(longPathSafe(pathFromUtf8(utf8Path)));
+    int r = avformat_open_input(&d->fmt, openPath.c_str(), nullptr, nullptr);
     if (r < 0) {
         error = "Can't open file: " + ffmpegError(r);
         return nullptr;

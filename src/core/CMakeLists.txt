@@ -37,6 +37,36 @@ if(UNIX)
   target_link_libraries(mp_miniaudio PUBLIC m)
 endif()
 
+# ---- SQLite (library database) ----
+# vcpkg exports unofficial::sqlite3::sqlite3. Without vcpkg (Linux later, D22) use CMake's FindSQLite3.
+find_package(unofficial-sqlite3 CONFIG QUIET)
+add_library(mp_sqlite INTERFACE)
+if(unofficial-sqlite3_FOUND)
+  target_link_libraries(mp_sqlite INTERFACE unofficial::sqlite3::sqlite3)
+else()
+  find_package(SQLite3 REQUIRED)
+  target_link_libraries(mp_sqlite INTERFACE SQLite::SQLite3)
+endif()
+
+# ---- TagLib (tags and audio properties) ----
+# vcpkg's port ships a CMake config; its target is TagLib::tag (older ports: TagLib::TagLib).
+# Without vcpkg fall back to pkg-config. Sources include <taglib/...> either way.
+add_library(mp_taglib INTERFACE)
+find_package(TagLib CONFIG QUIET)
+if(TagLib_FOUND)
+  if(TARGET TagLib::tag)
+    target_link_libraries(mp_taglib INTERFACE TagLib::tag)
+  elseif(TARGET TagLib::TagLib)
+    target_link_libraries(mp_taglib INTERFACE TagLib::TagLib)
+  else()
+    message(FATAL_ERROR "TagLib was found but exports neither TagLib::tag nor TagLib::TagLib")
+  endif()
+else()
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(MP_TAGLIB REQUIRED IMPORTED_TARGET taglib)
+  target_link_libraries(mp_taglib INTERFACE PkgConfig::MP_TAGLIB)
+endif()
+
 # ---- core library ----
 add_library(mp_core STATIC
   format.cpp
@@ -53,9 +83,23 @@ add_library(mp_core STATIC
   audio/output.hpp
   audio/engine.cpp
   audio/engine.hpp
+  text.cpp
+  text.hpp
+  util/bounded_queue.hpp
+  library/database.cpp
+  library/database.hpp
+  library/schema.cpp
+  library/tag_reader.cpp
+  library/tag_reader.hpp
+  library/entities.cpp
+  library/entities.hpp
+  library/library.cpp
+  library/library.hpp
+  library/scanner.cpp
+  library/scanner.hpp
 )
 target_include_directories(mp_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_compile_features(mp_core PUBLIC cxx_std_20)
 target_link_libraries(mp_core
   PUBLIC Threads::Threads
-  PRIVATE mp_options mp_ffmpeg mp_miniaudio)
+  PRIVATE mp_options mp_ffmpeg mp_miniaudio mp_sqlite mp_taglib)

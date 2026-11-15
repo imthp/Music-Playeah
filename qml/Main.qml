@@ -2,9 +2,10 @@ import QtQuick
 import QtQuick.Dialogs
 import MusicPlayeah
 
-// Milestone 2 test window: a folder's tracks and a minimal transport bar, enough to test the
-// playback engine (gapless, seeking, pause, volume, underruns while scrolling).
-// The real layout arrives in milestone 4.
+// Test window with two pages (real layout arrives in milestone 4):
+//  - Player (milestone 2): a folder's tracks and a minimal transport bar, enough to test the
+//    playback engine (gapless, seeking, pause, volume, underruns while scrolling).
+//  - Library (milestone 3a): watched folders, scanning and counts (LibraryTest.qml).
 // Keys: Space play/pause · Left/Right seek 5 s · Ctrl+Left/Right previous/next · Ctrl+O open folder.
 Window {
     id: root
@@ -15,6 +16,10 @@ Window {
     visible: true
     title: Player.title.length > 0 ? Player.title + " · " + AppInfo.name : AppInfo.name
     color: Theme.bg
+
+    // Which test page is shown: "player" (milestone 2) or "library" (milestone 3a).
+    // Real navigation (sidebar) arrives with milestone 4.
+    property string page: "player"
 
     // ---------------------------------------------------------------- small components
 
@@ -117,11 +122,47 @@ Window {
         onAccepted: Player.openUrl(selectedFolder)
     }
 
+    // ---------------------------------------------------------------- page tabs (test windows)
+
+    Row {
+        id: tabs
+        anchors { left: parent.left; top: parent.top; margins: 24 }
+        spacing: 8
+        Repeater {
+            model: [{ key: "player", label: "Player" }, { key: "library", label: "Library" }]
+            delegate: Rectangle {
+                id: tab
+                required property var modelData
+                readonly property bool active: root.page === modelData.key
+                width: tabLabel.implicitWidth + 32
+                height: Theme.hitTarget
+                radius: height / 2
+                color: active ? Theme.accent : (tabMouse.containsMouse ? Theme.surfaceInput : "transparent")
+                border { color: active ? "transparent" : Theme.borderButton; width: 1 }
+                Label {
+                    id: tabLabel
+                    anchors.centerIn: parent
+                    text: tab.modelData.label
+                    color: tab.active ? Theme.accentText : Theme.textPrimary
+                    font.weight: Font.DemiBold
+                }
+                MouseArea {
+                    id: tabMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.page = tab.modelData.key
+                }
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- header
 
     Item {
         id: header
-        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 24 }
+        visible: root.page === "player"
+        anchors { left: parent.left; right: parent.right; top: tabs.bottom; margins: 24 }
         height: Theme.hitTarget
 
         Rectangle {
@@ -185,6 +226,7 @@ Window {
 
     ListView {
         id: list
+        visible: root.page === "player"
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: transport.top; topMargin: 16 }
         clip: true
         model: Player.trackNames
@@ -220,6 +262,13 @@ Window {
                 onDoubleClicked: Player.playIndex(index)
             }
         }
+    }
+
+    // ---------------------------------------------------------------- library page (milestone 3a)
+
+    LibraryTest {
+        visible: root.page === "library"
+        anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: transport.top; topMargin: 16 }
     }
 
     // ---------------------------------------------------------------- transport

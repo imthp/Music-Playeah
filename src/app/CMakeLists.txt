@@ -7,6 +7,8 @@ qt_add_executable(music_playeah
   appinfo.hpp
   player.cpp
   player.hpp
+  library_controller.cpp
+  library_controller.hpp
 )
 
 # One implementation of platform/window_style.hpp per OS (D22). Windows API calls live only in platform/win/.
@@ -28,12 +30,16 @@ set_source_files_properties(${MP_QML_DIR}/Theme.qml PROPERTIES
 set_source_files_properties(${MP_QML_DIR}/Main.qml PROPERTIES
   QT_RESOURCE_ALIAS Main.qml
 )
+set_source_files_properties(${MP_QML_DIR}/LibraryTest.qml PROPERTIES
+  QT_RESOURCE_ALIAS LibraryTest.qml
+)
 
 qt_add_qml_module(music_playeah
   URI MusicPlayeah
   VERSION 1.0
   QML_FILES
     ${MP_QML_DIR}/Main.qml
+    ${MP_QML_DIR}/LibraryTest.qml
     ${MP_QML_DIR}/Theme.qml
 )
 

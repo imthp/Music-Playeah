@@ -9,6 +9,8 @@
       "default-features": false,
       "features": [ "avcodec", "avformat", "swresample" ]
     },
-    "miniaudio"
+    "miniaudio",
+    "sqlite3",
+    "taglib"
   ]
 }
