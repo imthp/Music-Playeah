@@ -14,7 +14,8 @@ option(MP_ASAN_NO_ANNOTATIONS
 # One interface target carries the warning/sanitizer flags for all our targets.
 add_library(mp_options INTERFACE)
 if(MSVC)
-  target_compile_options(mp_options INTERFACE /W4 /permissive- /utf-8 /Zc:__cplusplus)
+  # C4324 (struct padded because of alignas) is the point of alignas in FrameRing (false-sharing guard).
+  target_compile_options(mp_options INTERFACE /W4 /wd4324 /permissive- /utf-8 /Zc:__cplusplus)
   if(MP_ASAN)
     target_compile_options(mp_options INTERFACE /fsanitize=address)
     # ASan is incompatible with incremental linking and edit-and-continue.

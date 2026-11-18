@@ -129,7 +129,86 @@ void readAudioProperties(const tl::AudioProperties& props, const std::string& ex
     }
 }
 
+// Credits from the property map. TagLib maps ID3v2.4 TMCL (instrument -> musician pairs) to
+// "PERFORMER:<instrument>" keys and Vorbis PERFORMER=Name (instrument) stays as "PERFORMER".
+std::string readCredits(const tl::PropertyMap& props) {
+    std::vector<Credit> credits;
+    auto add = [&](const std::string& role, const std::string& name, const std::string& instrument) {
+        Credit c{role, name, lowerAscii(instrument)};
+        if (!c.name.empty() && std::find(credits.begin(), credits.end(), c) == credits.end()) {
+            credits.push_back(std::move(c));
+        }
+    };
+    for (const auto& [key, values] : props) {
+        const std::string k = key.to8Bit(true);
+        for (const tl::String& value : values) {
+            const std::string v = utf8(value);
+            if (v.empty()) {
+                continue;
+            }
+            if (k == "PERFORMER") {
+                const auto [name, instrument] = splitPerformer(v);
+                add("performer", name, instrument);
+            } else if (k.size() > 10 && k.compare(0, 10, "PERFORMER:") == 0) {
+                add("performer", v, trimText(k.substr(10)));
+            } else if (k == "CONDUCTOR") {
+                add("conductor", v, "");
+            } else if (k == "ENSEMBLE") {
+                add("ensemble", v, "");
+            }
+        }
+    }
+    return formatCredits(credits);
+}
+
 }  // namespace
+
+std::pair<std::string, std::string> splitPerformer(const std::string& value) {
+    const std::string v = trimText(value);
+    if (v.size() >= 3 && v.back() == ')') {
+        const std::size_t open = v.rfind('(');
+        if (open != std::string::npos && open > 0) {
+            const std::string name = trimText(v.substr(0, open));
+            const std::string instrument = trimText(v.substr(open + 1, v.size() - open - 2));
+            if (!name.empty()) {
+                return {name, instrument};
+            }
+        }
+    }
+    return {v, {}};
+}
+
+std::string formatCredits(const std::vector<Credit>& credits) {
+    auto clean = [](std::string s) {
+        std::replace_if(s.begin(), s.end(), [](char c) { return c == '\t' || c == '\n' || c == '\r'; }, ' ');
+        return s;
+    };
+    std::string out;
+    for (const Credit& c : credits) {
+        out += out.empty() ? "" : "\n";
+        out += clean(c.role) + '\t' + clean(c.name) + '\t' + clean(c.instrument);
+    }
+    return out;
+}
+
+std::vector<Credit> parseCredits(const std::string& stored) {
+    std::vector<Credit> credits;
+    std::size_t pos = 0;
+    while (pos <= stored.size() && !stored.empty()) {
+        std::size_t end = stored.find('\n', pos);
+        if (end == std::string::npos) {
+            end = stored.size();
+        }
+        const std::string line = stored.substr(pos, end - pos);
+        const std::size_t t1 = line.find('\t');
+        const std::size_t t2 = t1 == std::string::npos ? t1 : line.find('\t', t1 + 1);
+        if (t2 != std::string::npos) {
+            credits.push_back({line.substr(0, t1), line.substr(t1 + 1, t2 - t1 - 1), line.substr(t2 + 1)});
+        }
+        pos = end + 1;
+    }
+    return credits;
+}
 
 int parseLeadingInt(const std::string& text) {
     std::size_t i = 0;
@@ -233,6 +312,8 @@ bool readTags(const std::filesystem::path& file, FileTags& out, std::string& err
         out.year = parseYear(property(props, {"DATE", "YEAR", "ORIGINALDATE", "ORIGINALYEAR"}));
         out.rgTrackGain = parseGainDb(property(props, {"REPLAYGAIN_TRACK_GAIN"}));
         out.rgAlbumGain = parseGainDb(property(props, {"REPLAYGAIN_ALBUM_GAIN"}));
+
+        out.credits = readCredits(props);
 
         if (const auto* mp4 = dynamic_cast<tl::MP4::File*>(ref.file()); mp4 != nullptr && mp4->tag() != nullptr) {
             const tl::MP4::Tag& tag = *mp4->tag();

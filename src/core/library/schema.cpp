@@ -29,17 +29,30 @@ constexpr const char* kPassThrough[] = {"id",          "path",       "mtime",   
                                         "sample_rate", "bit_depth",  "channels",     "bitrate",      "rg_track_gain",
                                         "rg_album_gain", "art_hash", "added_at",     "missing_since"};
 
-std::string effective(const char* field, bool integer) {
-    const std::string f = field;
+std::string overrideOf(const std::string& f, bool integer) {
     const std::string pick = integer ? "CAST(o.value AS INTEGER)" : "o.value";
-    return "COALESCE((SELECT " + pick + " FROM tag_overrides o WHERE o.track_id = t.id AND o.field = '" + f +
-           "'), t." + f + ") AS " + f;
+    return "(SELECT " + pick + " FROM tag_overrides o WHERE o.track_id = t.id AND o.field = '" + f + "')";
+}
+
+// `detected`: movement number/name fall back to what the work detector derived from the title
+// (migration v2) when the file has no such tag. v_tags (detected = false) is what the detector itself
+// reads, so its own earlier output never feeds back into it.
+std::string effective(const char* field, bool integer, bool detected) {
+    const std::string f = field;
+    if (detected && f == "movement_no") {
+        return "COALESCE(" + overrideOf(f, true) + ", NULLIF(t.movement_no, 0), t.det_movement_no) AS movement_no";
+    }
+    if (detected && f == "movement_name") {
+        return "COALESCE(" + overrideOf(f, false) +
+               ", NULLIF(t.movement_name, ''), NULLIF(t.det_movement_name, ''), '') AS movement_name";
+    }
+    return "COALESCE(" + overrideOf(f, integer) + ", t." + f + ") AS " + f;
 }
 
 // v_tracks: the *effective* tags. Override if present, else the file tag. `missing_since` is
 // passed through; screens filter `WHERE missing_since IS NULL`.
-std::string tracksView() {
-    std::string sql = "CREATE VIEW v_tracks AS SELECT ";
+std::string tracksView(const char* name, bool detected) {
+    std::string sql = std::string("CREATE VIEW ") + name + " AS SELECT ";
     bool first = true;
     auto add = [&](const std::string& column) {
         sql += first ? "" : ", ";
@@ -50,10 +63,10 @@ std::string tracksView() {
         add(std::string("t.") + c);
     }
     for (const char* c : kOverridableText) {
-        add(effective(c, false));
+        add(effective(c, false, detected));
     }
     for (const char* c : kOverridableInt) {
-        add(effective(c, true));
+        add(effective(c, true, detected));
     }
     sql += " FROM tracks t";
     return sql;
@@ -244,7 +257,68 @@ CREATE TABLE waveforms (
   made_at   INTEGER NOT NULL
 );
 )sql");
-    db.exec(tracksView());
+    db.exec(tracksView("v_tracks", false));
+}
+
+// ---- v2 (milestone 3b) -------------------------------------------------------------------
+
+void migrateToV2(Database& db) {
+    db.exec(R"sql(
+ALTER TABLE tracks ADD COLUMN works_done INTEGER NOT NULL DEFAULT 0;      -- 0 = work detection still to run
+ALTER TABLE tracks ADD COLUMN credits_raw TEXT NOT NULL DEFAULT '';       -- "role<TAB>name<TAB>instrument" lines from the file
+ALTER TABLE tracks ADD COLUMN det_movement_no INTEGER NOT NULL DEFAULT 0; -- derived by the work detector, not a file tag
+ALTER TABLE tracks ADD COLUMN det_movement_name TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_tracks_works_pending ON tracks(works_done) WHERE works_done = 0;
+
+ALTER TABLE albums ADD COLUMN art_source TEXT;                            -- "file:<path>" or "embedded:<track path>"; NULL = no art found
+ALTER TABLE albums ADD COLUMN art_checked INTEGER NOT NULL DEFAULT 0;     -- 0 = art lookup still to run
+CREATE INDEX idx_albums_art_hash ON albums(art_hash);
+
+-- Existing rows have no credits yet and are read again on the next scan (one time).
+UPDATE tracks SET mtime = -1;
+)sql");
+    db.exec("DROP VIEW v_tracks");
+    db.exec(tracksView("v_tracks", true));
+    db.exec(tracksView("v_tags", false));
+}
+
+// ---- v3 (work identity, D36) --------------------------------------------------------------
+
+void migrateToV3(Database& db) {
+    db.exec(R"sql(
+CREATE TABLE meta (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
+-- Work keys changed meaning (form + number instead of the title text): every track is grouped again on the
+-- next scan. The old work rows are replaced by it; nothing outside `works` and tracks.work_id depends on them yet.
+UPDATE tracks SET works_done = 0;
+)sql");
+}
+
+// v4 (M3b, D39): a catalog number decides the work. New work keys, so every work is detected again.
+// number_key: the form + number identity ("f:suite#2") of a work that has a catalog number, so recordings
+// titled only "Lute Suite No. 2" can join it. titles: every title the work was seen under; family_*: the
+// family those titles vote for (D38).
+void migrateToV4(Database& db) {
+    db.exec(R"sql(
+ALTER TABLE works ADD COLUMN number_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE works ADD COLUMN titles     TEXT NOT NULL DEFAULT '';
+-- The Works view's family (D38), worked out at scan time from all titles so browsing runs no regex.
+ALTER TABLE works ADD COLUMN family_key   TEXT NOT NULL DEFAULT '';
+ALTER TABLE works ADD COLUMN family_label TEXT NOT NULL DEFAULT '';
+CREATE INDEX idx_works_number_key ON works(number_key);
+UPDATE tracks SET works_done = 0;
+)sql");
+}
+
+// v5 (M3b, D40): works built under v3 keys could survive v4 (a recording without a catalog number found its old
+// row by key, with that row's stale catalog number), and number_key became a list. Start the works over.
+void migrateToV5(Database& db) {
+    db.exec(R"sql(
+UPDATE tracks SET work_id = NULL, works_done = 0;
+DELETE FROM works;
+)sql");
 }
 
 struct Migration {
@@ -254,6 +328,10 @@ struct Migration {
 
 constexpr Migration kMigrations[] = {
     {1, migrateToV1},
+    {2, migrateToV2},
+    {3, migrateToV3},
+    {4, migrateToV4},
+    {5, migrateToV5},
 };
 
 }  // namespace

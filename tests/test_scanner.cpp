@@ -314,7 +314,8 @@ TEST_CASE("A whole library folder moved elsewhere is re-matched when the new fol
 
     // The user removes the old watched folder (tracks go missing) and adds the new location.
     REQUIRE(env.lib.removeFolder(mp::core::genericUtf8(env.music)));
-    CHECK(env.lib.counts().missing == 3);
+    CHECK(env.lib.counts().missing == 0);  // removed on purpose: not "missing"
+    CHECK(env.lib.counts().unwatched == 3);
     const fs::path newMusic = env.dir.path() / "new_place";
     fs::rename(env.music, newMusic);
     REQUIRE(env.lib.addFolder(newMusic).ok);
@@ -323,6 +324,7 @@ TEST_CASE("A whole library folder moved elsewhere is re-matched when the new fol
     CHECK(s.moved == 3);
     CHECK(env.lib.counts().tracks == 3);
     CHECK(env.lib.counts().missing == 0);
+    CHECK(env.lib.counts().unwatched == 0);
     Statement st = env.lib.db().prepare("SELECT path FROM tracks WHERE id = ?1");
     st.bind(1, firstId);
     REQUIRE(st.step());
@@ -505,7 +507,8 @@ TEST_CASE("Removing a watched folder keeps its tracks as missing", "[scan][folde
     CHECK(env.lib.folders().empty());
     const LibraryCounts c = env.lib.counts();
     CHECK(c.tracks == 0);
-    CHECK(c.missing == 2);
+    CHECK(c.missing == 0);
+    CHECK(c.unwatched == 2);
     CHECK(env.lib.db().scalarInt("SELECT COUNT(*) FROM plays") == 1);
 
     // With no watched folders a scan does nothing and doesn't touch what is stored.

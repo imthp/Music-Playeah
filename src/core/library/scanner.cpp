@@ -9,8 +9,10 @@
 #include <unordered_map>
 #include <utility>
 
+#include "core/library/art.hpp"
 #include "core/library/database.hpp"
 #include "core/library/entities.hpp"
+#include "core/library/works.hpp"
 #include "core/library/library.hpp"
 #include "core/library/tag_reader.hpp"
 #include "core/text.hpp"
@@ -52,7 +54,7 @@ constexpr const char* kTagColumns[] = {"title",      "artist",         "album_ar
                                        "work_tag",   "movement_no",    "movement_total", "movement_name", "disc_no",
                                        "track_no",   "year",           "genre",         "duration_ms", "codec",
                                        "sample_rate", "bit_depth",     "channels",      "bitrate",     "rg_track_gain",
-                                       "rg_album_gain"};
+                                       "rg_album_gain", "credits_raw"};
 
 std::string upsertSql() {
     // Parameters: ?1 path, ?2 mtime, ?3 size, then the tag columns, then match_key and added_at.
@@ -65,11 +67,11 @@ std::string upsertSql() {
         values += ", ?" + std::to_string(++index);
         update += std::string(", ") + c + " = excluded." + c;
     }
-    columns += ", match_key, added_at, resolved";
+    columns += ", match_key, added_at, resolved, works_done";
     values += ", ?" + std::to_string(++index);  // match_key
     values += ", ?" + std::to_string(++index);  // added_at
-    values += ", 0";                            // resolved
-    update += ", match_key = excluded.match_key, resolved = 0, missing_since = NULL";
+    values += ", 0, 0";                         // resolved, works_done
+    update += ", match_key = excluded.match_key, resolved = 0, works_done = 0, missing_since = NULL";
     return "INSERT INTO tracks(" + columns + ") VALUES (" + values + ") ON CONFLICT(path) DO UPDATE SET " + update;
 }
 
@@ -386,6 +388,7 @@ void Scanner::Impl::writerLoop(Database& db, BoundedQueue<WriterMsg>& results) {
                     upsert.bind(i++, t.bitrateKbps);
                     upsert.bind(i++, t.rgTrackGain);
                     upsert.bind(i++, t.rgAlbumGain);
+                    upsert.bind(i++, t.credits);
                     upsert.bind(i++, matchKey(t));
                     upsert.bind(i++, unixSeconds());
                     upsert.run();
@@ -466,7 +469,7 @@ std::uint64_t Scanner::Impl::rematchMoved(Database& db, std::int64_t maxIdBefore
     for (const char* c : kTagColumns) {
         assignments += std::string(", ") + c + " = (SELECT " + c + " FROM tracks WHERE id = ?2)";
     }
-    assignments += ", match_key = (SELECT match_key FROM tracks WHERE id = ?2), resolved = 0, missing_since = NULL";
+    assignments += ", match_key = (SELECT match_key FROM tracks WHERE id = ?2), resolved = 0, works_done = 0, missing_since = NULL";
 
     Transaction tx(db);
     Statement candidates = db.prepare(
@@ -568,6 +571,8 @@ void Scanner::Impl::run() {
                 summary.moved = rematchMoved(writer, maxIdBefore);
             }
             resolveEntities(writer);  // also after a cancel: whatever was stored gets its albums
+            resolveWorks(writer);     // then works and movements (needs the album and composer ids)
+            resolveArt(writer, &cancel);  // then covers (one embedded-picture read per new album)
         }
     } catch (const std::exception& e) {
         std::lock_guard lock(mutex);

@@ -86,6 +86,8 @@ add_library(mp_core STATIC
   text.cpp
   text.hpp
   util/bounded_queue.hpp
+  library/art.cpp
+  library/art.hpp
   library/database.cpp
   library/database.hpp
   library/schema.cpp
@@ -97,6 +99,14 @@ add_library(mp_core STATIC
   library/library.hpp
   library/scanner.cpp
   library/scanner.hpp
+  library/work_identity.cpp
+  library/work_identity.hpp
+  library/work_parser.cpp
+  library/work_parser.hpp
+  library/work_tree.cpp
+  library/work_tree.hpp
+  library/works.cpp
+  library/works.hpp
 )
 target_include_directories(mp_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_compile_features(mp_core PUBLIC cxx_std_20)

@@ -4,12 +4,15 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
+#include <vector>
 
 #include "core/library/library.hpp"
 #include "core/library/scanner.hpp"
+#include "core/library/work_tree.hpp"
 
 namespace mp::app {
 
@@ -37,6 +40,10 @@ class LibraryController : public QObject {
     Q_PROPERTY(QString summaryText READ summaryText NOTIFY summaryChanged)
     Q_PROPERTY(QStringList problems READ problems NOTIFY summaryChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY errorTextChanged)
+    // Milestone 3b: bumps whenever the database content changed (scan finished, folder removed), so QML
+    // bindings that read `revision` re-run their queries.
+    Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
+    Q_PROPERTY(QString worksSummary READ worksSummary NOTIFY revisionChanged)
 
 public:
     explicit LibraryController(QObject* parent = nullptr);
@@ -56,6 +63,8 @@ public:
     QString summaryText() const { return summaryText_; }
     QStringList problems() const { return problems_; }
     QString errorText() const { return errorText_; }
+    int revision() const { return revision_; }
+    QString worksSummary() const { return worksSummary_; }
 
     // Adds a music folder (from a FolderDialog) and scans it.
     Q_INVOKABLE void addFolder(const QUrl& folder);
@@ -65,6 +74,27 @@ public:
     Q_INVOKABLE void scan();
     Q_INVOKABLE void cancelScan();
 
+    // ---- Milestone 3b test queries (UI thread). Plain lists of maps; the real models come in milestone 4.
+    // Albums with at least one existing track: id, title, artist, year, artHash ("" = no cover; user
+    // override first), tracks, works, instruments.
+    Q_INVOKABLE QVariantList albums();
+    // Tracks of one album in disc/track order: id, path, title, artist, movementNo, movementName,
+    // workTitle, workId, durationMs, codec. `path` and `title` are what Player.playTracks() wants.
+    Q_INVOKABLE QVariantList albumTracks(qlonglong albumId);
+    // Works with existing tracks: id, title, catalog, composer, recordings (albums), tracks.
+    Q_INVOKABLE QVariantList works();
+    // The same works as a tree (D38): composers [{name, workCount, families}], each family {label, catalogRange, works}
+    // where works are maps as in works(). A family with an empty label holds one work standing alone.
+    Q_INVOKABLE QVariantList worksByComposer();
+    // All movements of a work over all recordings: albumId, albumTitle, albumArtist, trackId, movementNo,
+    // movementName, title, path, albumArtHash, albumYear, workId.
+    Q_INVOKABLE QVariantList workMovements(qlonglong workId);
+    // The tracks of one recording of a work (work + album), in movement order, for Player.playTracks().
+    Q_INVOKABLE QVariantList workTracks(qlonglong workId, qlonglong albumId);
+    // Albums with composer-tagged tracks that got no work: albumId, albumTitle, albumArtist, tracks, composer,
+    // sampleTitle. The "wrong or missed" list that milestone 7 (metadata fixes) works from.
+    Q_INVOKABLE QVariantList undetectedClassical();
+
 signals:
     void foldersChanged();
     void scanningChanged();
@@ -72,12 +102,16 @@ signals:
     void countsChanged();
     void summaryChanged();
     void errorTextChanged();
+    void revisionChanged();
 
 private:
     void handleProgress(const core::library::ScanProgress& progress);
     void handleDone(const core::library::ScanSummary& summary);
     void refreshFolders();
     void refreshCounts();
+    void refreshWorksSummary();
+    QVariantList trackRows(const QString& where, qlonglong a, qlonglong b, const QString& orderBy);
+    std::vector<core::library::WorkEntry> workEntries();
     void setError(const QString& text);
 
     QString databasePath_;
@@ -93,6 +127,8 @@ private:
     QString summaryText_;
     QStringList problems_;
     QString errorText_;
+    int revision_ = 0;
+    QString worksSummary_;
 
     // Order matters: the scanner (its threads) is destroyed before the library it reads from.
     std::unique_ptr<core::library::Library> library_;

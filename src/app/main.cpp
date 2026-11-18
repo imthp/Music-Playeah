@@ -1,9 +1,13 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QDir>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QDebug>
 
+#include "art_provider.hpp"
+#include "core/text.hpp"
 #include "platform/window_style.hpp"
 #include "player.hpp"
 
@@ -21,6 +25,14 @@ int main(int argc, char* argv[]) {
     }
 
     QQmlApplicationEngine engine;
+    // Album covers: image://art/<hash>/<size> (milestone 3b). Same database file as LibraryController uses.
+    {
+        const QString dbFile = QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+                                   .filePath(QStringLiteral("library.db"));
+        engine.addImageProvider(QStringLiteral("art"),
+                                new mp::app::ArtProvider(mp::core::pathFromUtf8(dbFile.toUtf8().toStdString()),
+                                                         mp::app::ArtProvider::defaultCacheFolder()));
+    }
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
         []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);

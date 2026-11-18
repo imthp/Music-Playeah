@@ -16,7 +16,9 @@ struct FolderInfo {
 
 struct LibraryCounts {
     std::int64_t tracks = 0;   // files that currently exist
-    std::int64_t missing = 0;  // known files that are gone (unplugged drive, moved...)
+    std::int64_t missing = 0;  // known files in a *watched* folder that are gone (unplugged drive, deleted...)
+    std::int64_t unwatched = 0;  // remembered files of folders the user removed: not "missing", just not watched
+                                 // (kept so history survives and a re-added or moved folder is re-matched)
     std::int64_t albums = 0;   // with at least one existing track
     std::int64_t artists = 0;  // performers, album artists and composers of existing tracks
 };

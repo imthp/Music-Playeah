@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <QUrl>
+#include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
@@ -62,6 +63,9 @@ public:
     // A folder (plays from the first file) or a single file (plays its folder from that file).
     Q_INVOKABLE void openPath(const QString& path);
     Q_INVOKABLE void openUrl(const QUrl& url);
+    // Milestone 3b test aid: plays library tracks, `items` being maps with "path" and "title" (what
+    // Library.albumTracks() / Library.workTracks() return), starting at index `start`. `label` names the list.
+    Q_INVOKABLE void playTracks(const QVariantList& items, int start, const QString& label);
     Q_INVOKABLE void playIndex(int index);
     Q_INVOKABLE void playPause();
     Q_INVOKABLE void next();

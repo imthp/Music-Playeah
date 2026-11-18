@@ -123,7 +123,14 @@ bool Library::removeFolder(const std::string& folderPath) {
 LibraryCounts Library::counts() {
     LibraryCounts c;
     c.tracks = db_.scalarInt("SELECT COUNT(*) FROM tracks WHERE missing_since IS NULL");
-    c.missing = db_.scalarInt("SELECT COUNT(*) FROM tracks WHERE missing_since IS NOT NULL");
+    // A track is "missing" only if it lies under a folder that is still watched; the tracks of a folder the user
+    // removed stay in the database (D28) but are merely unwatched.
+    const char* kUnderWatchedFolder =
+        "EXISTS (SELECT 1 FROM folders f WHERE t.path >= f.path || '/' AND t.path < f.path || '0')";
+    c.missing = db_.scalarInt(std::string("SELECT COUNT(*) FROM tracks t WHERE t.missing_since IS NOT NULL AND ") +
+                              kUnderWatchedFolder);
+    c.unwatched = db_.scalarInt(std::string("SELECT COUNT(*) FROM tracks t WHERE t.missing_since IS NOT NULL AND NOT ") +
+                                kUnderWatchedFolder);
     c.albums = db_.scalarInt(
         "SELECT COUNT(DISTINCT album_id) FROM tracks WHERE missing_since IS NULL AND album_id IS NOT NULL");
     c.artists = db_.scalarInt(

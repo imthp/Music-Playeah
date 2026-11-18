@@ -220,6 +220,7 @@ Item {
             font.pixelSize: Theme.sizeMeta
         }
     }
+    VScrollBar { flickable: problems; anchors { left: problems.right; leftMargin: 4; top: problems.top; bottom: problems.bottom } }
 
     Label {
         id: footer

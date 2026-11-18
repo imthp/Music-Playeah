@@ -57,6 +57,8 @@ struct TagSpec {
     std::string date;            // "2019" or "2019-05-03"
     std::string gainTrack;       // "-6.54 dB"
     std::string gainAlbum;
+    std::vector<std::string> performers;  // PERFORMER values, "Name (instrument)"
+    std::string conductor;
 };
 
 template <typename T>
@@ -111,6 +113,14 @@ inline void tagFile(const fs::path& path, const TagSpec& t) {
     set("DATE", t.date);
     set("REPLAYGAIN_TRACK_GAIN", t.gainTrack);
     set("REPLAYGAIN_ALBUM_GAIN", t.gainAlbum);
+    set("CONDUCTOR", t.conductor);
+    if (!t.performers.empty()) {
+        TagLib::StringList list;
+        for (const std::string& p : t.performers) {
+            list.append(TagLib::String(p, TagLib::String::UTF8));
+        }
+        props.replace("PERFORMER", list);
+    }
     ref.file()->setProperties(props);
     REQUIRE(ref.save());
 }

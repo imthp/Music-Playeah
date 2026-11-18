@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace mp::core::library {
 
@@ -26,6 +28,7 @@ struct FileTags {
     int movementTotal = 0;     // MOVEMENTTOTAL / MOVEMENTCOUNT / ©mvc, or the "/n" of "2/4"
     std::optional<double> rgTrackGain;  // dB
     std::optional<double> rgAlbumGain;
+    std::string credits;  // performer/conductor/ensemble credits in the stored form, see Credit below ("" = none)
 
     // Audio properties. Codec uses the names of audio::TrackInfo::codec.
     std::string codec;
@@ -35,6 +38,20 @@ struct FileTags {
     int bitrateKbps = 0;
     std::int64_t durationMs = 0;
 };
+
+// One credit of a track (D27, SPEC §8b2). Stored in `tracks.credits_raw` as lines "role<TAB>name<TAB>instrument"
+// and turned into `credits` rows by the second scan pass (where the artists get their ids).
+struct Credit {
+    std::string role;        // "performer", "conductor" or "ensemble"
+    std::string name;
+    std::string instrument;  // lower case, "" when unknown
+    bool operator==(const Credit&) const = default;
+};
+std::string formatCredits(const std::vector<Credit>& credits);
+std::vector<Credit> parseCredits(const std::string& stored);
+// "Julian Bream (guitar)" -> {"Julian Bream", "guitar"}; "Julian Bream" -> {"Julian Bream", ""}.
+// The Picard convention for Vorbis/FLAC PERFORMER tags. Only the last "(...)" counts.
+std::pair<std::string, std::string> splitPerformer(const std::string& value);
 
 // True for the extensions the library scans (SPEC §2): flac mp3 m4a dsf dff wav aif aiff ogg oga opus.
 bool isLibraryFile(const std::filesystem::path& file);

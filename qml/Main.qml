@@ -6,6 +6,7 @@ import MusicPlayeah
 //  - Player (milestone 2): a folder's tracks and a minimal transport bar, enough to test the
 //    playback engine (gapless, seeking, pause, volume, underruns while scrolling).
 //  - Library (milestone 3a): watched folders, scanning and counts (LibraryTest.qml).
+//  - Browse (milestone 3b): albums with covers, detected works and movements (BrowseTest.qml).
 // Keys: Space play/pause · Left/Right seek 5 s · Ctrl+Left/Right previous/next · Ctrl+O open folder.
 Window {
     id: root
@@ -17,7 +18,7 @@ Window {
     title: Player.title.length > 0 ? Player.title + " · " + AppInfo.name : AppInfo.name
     color: Theme.bg
 
-    // Which test page is shown: "player" (milestone 2) or "library" (milestone 3a).
+    // Which test page is shown: "player" (milestone 2), "library" (3a) or "browse" (3b).
     // Real navigation (sidebar) arrives with milestone 4.
     property string page: "player"
 
@@ -129,7 +130,7 @@ Window {
         anchors { left: parent.left; top: parent.top; margins: 24 }
         spacing: 8
         Repeater {
-            model: [{ key: "player", label: "Player" }, { key: "library", label: "Library" }]
+            model: [{ key: "player", label: "Player" }, { key: "library", label: "Library" }, { key: "browse", label: "Browse" }]
             delegate: Rectangle {
                 id: tab
                 required property var modelData
@@ -263,11 +264,23 @@ Window {
             }
         }
     }
+    VScrollBar {
+        visible: root.page === "player" && ratio < 0.999
+        flickable: list
+        anchors { right: list.right; rightMargin: 6; top: list.top; bottom: list.bottom }
+    }
 
     // ---------------------------------------------------------------- library page (milestone 3a)
 
     LibraryTest {
         visible: root.page === "library"
+        anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: transport.top; topMargin: 16 }
+    }
+
+    // ---------------------------------------------------------------- browse page (milestone 3b)
+
+    BrowseTest {
+        visible: root.page === "browse"
         anchors { left: parent.left; right: parent.right; top: tabs.bottom; bottom: transport.top; topMargin: 16 }
     }
 

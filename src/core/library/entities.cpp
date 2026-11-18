@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/library/tag_reader.hpp"
 #include "core/text.hpp"
 
 namespace mp::core::library {
@@ -23,6 +24,7 @@ struct Row {
     std::string albumArtist;
     std::string composer;
     std::string album;
+    std::string creditsRaw;
     int year = 0;
 };
 
@@ -48,7 +50,7 @@ ResolveStats resolveEntities(Database& db) {
     std::vector<Row> rows;
     {
         Statement s = db.prepare(
-            "SELECT id, path, artist, album_artist, composer, album, year FROM tracks WHERE resolved = 0");
+            "SELECT id, path, artist, album_artist, composer, album, year, credits_raw FROM tracks WHERE resolved = 0");
         while (s.step()) {
             Row r;
             r.id = s.getInt(0);
@@ -58,6 +60,7 @@ ResolveStats resolveEntities(Database& db) {
             r.composer = s.getText(4);
             r.album = s.getText(5);
             r.year = static_cast<int>(s.getInt(6));
+            r.creditsRaw = s.getText(7);
             rows.push_back(std::move(r));
         }
     }
@@ -133,6 +136,9 @@ ResolveStats resolveEntities(Database& db) {
 
     Statement update = db.prepare(
         "UPDATE tracks SET artist_id = ?1, composer_id = ?2, album_id = ?3, resolved = 1 WHERE id = ?4");
+    Statement clearCredits = db.prepare("DELETE FROM credits WHERE track_id = ?1 AND source = 'file'");
+    Statement insertCredit =
+        db.prepare("INSERT INTO credits(track_id, artist_id, role, instrument, source) VALUES (?1, ?2, ?3, ?4, 'file')");
     for (const Row& r : rows) {
         const std::optional<std::int64_t> artist = artistId(r.artist);
         const std::optional<std::int64_t> composer = artistId(r.composer);
@@ -154,15 +160,40 @@ ResolveStats resolveEntities(Database& db) {
         update.bind(4, r.id);
         update.run();
         ++stats.tracks;
+
+        // Credits written in the file (D27): replace this track's file credits with what the tags say now.
+        clearCredits.bind(1, r.id);
+        clearCredits.run();
+        for (const Credit& c : parseCredits(r.creditsRaw)) {
+            if (const std::optional<std::int64_t> who = artistId(c.name)) {
+                insertCredit.bind(1, r.id).bind(2, *who).bind(3, c.role);
+                c.instrument.empty() ? insertCredit.bind(4, nullptr) : insertCredit.bind(4, c.instrument);
+                insertCredit.run();
+            }
+        }
     }
 
     // An album's year is its earliest year among its tracks.
     Statement updateYear = db.prepare(
         "UPDATE albums SET year = COALESCE((SELECT MIN(year) FROM tracks WHERE album_id = albums.id AND year > 0), 0) "
         "WHERE id = ?1");
+    Statement artAgain = db.prepare("UPDATE albums SET art_checked = 0 WHERE id = ?1");
     for (const std::int64_t id : touchedAlbums) {
         updateYear.bind(1, id);
         updateYear.run();
+        artAgain.bind(1, id);  // a changed album may have a new cover
+        artAgain.run();
+    }
+
+    // Instrument chips of an album come from its tracks' credits (SPEC §8b2). Recomputed for all albums:
+    // one statement, and it also fixes the album a retagged track left. User tags (source 'user') stay.
+    if (stats.tracks > 0) {
+        db.exec("DELETE FROM album_tags WHERE kind = 'instrument' AND source = 'file'");
+        db.exec(
+            "INSERT OR IGNORE INTO album_tags(album_id, tag, kind, source) "
+            "SELECT DISTINCT t.album_id, c.instrument, 'instrument', 'file' FROM credits c "
+            "JOIN tracks t ON t.id = c.track_id "
+            "WHERE c.instrument IS NOT NULL AND c.instrument <> '' AND c.source = 'file' AND t.album_id IS NOT NULL");
     }
 
     // Retagged files leave empty albums and unused artists behind. Albums/artists the user added

@@ -5,6 +5,8 @@ qt_add_executable(music_playeah
   main.cpp
   appinfo.cpp
   appinfo.hpp
+  art_provider.cpp
+  art_provider.hpp
   player.cpp
   player.hpp
   library_controller.cpp
@@ -33,6 +35,12 @@ set_source_files_properties(${MP_QML_DIR}/Main.qml PROPERTIES
 set_source_files_properties(${MP_QML_DIR}/LibraryTest.qml PROPERTIES
   QT_RESOURCE_ALIAS LibraryTest.qml
 )
+set_source_files_properties(${MP_QML_DIR}/VScrollBar.qml PROPERTIES
+  QT_RESOURCE_ALIAS VScrollBar.qml
+)
+set_source_files_properties(${MP_QML_DIR}/BrowseTest.qml PROPERTIES
+  QT_RESOURCE_ALIAS BrowseTest.qml
+)
 
 qt_add_qml_module(music_playeah
   URI MusicPlayeah
@@ -40,6 +48,8 @@ qt_add_qml_module(music_playeah
   QML_FILES
     ${MP_QML_DIR}/Main.qml
     ${MP_QML_DIR}/LibraryTest.qml
+    ${MP_QML_DIR}/BrowseTest.qml
+    ${MP_QML_DIR}/VScrollBar.qml
     ${MP_QML_DIR}/Theme.qml
 )
 

@@ -138,6 +138,26 @@ void Player::openPath(const QString& path) {
     playIndex(start);
 }
 
+void Player::playTracks(const QVariantList& items, int start, const QString& label) {
+    paths_.clear();
+    names_.clear();
+    for (const QVariant& item : items) {
+        const QVariantMap map = item.toMap();
+        paths_ << map.value(QStringLiteral("path")).toString();
+        names_ << map.value(QStringLiteral("title")).toString();
+    }
+    folder_ = label;
+    currentIndex_ = -1;
+    emit trackListChanged();
+    emit currentChanged();
+    if (paths_.isEmpty()) {
+        setError(QStringLiteral("Nothing to play"));
+        return;
+    }
+    setError({});
+    playIndex(std::clamp(start, 0, static_cast<int>(paths_.size()) - 1));
+}
+
 void Player::playIndex(int index) {
     if (index < 0 || index >= paths_.size()) {
         return;
