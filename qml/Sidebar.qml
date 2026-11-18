@@ -51,7 +51,12 @@ Rectangle {
         Row {
             spacing: 10
             leftPadding: 10; bottomPadding: 16
-            Icon { name: "albums"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
+            Item {   // logo: ring + center dot (mockup)
+                width: 22; height: 22
+                anchors.verticalCenter: parent.verticalCenter
+                Rectangle { x: 2; y: 2; width: 18; height: 18; radius: 9; color: "transparent"; border { width: 2; color: Theme.accent } antialiasing: true }
+                Rectangle { anchors.centerIn: parent; width: 5; height: 5; radius: 2.5; color: Theme.accent; antialiasing: true }
+            }
             Text {
                 text: AppInfo.name
                 color: Theme.textPrimary

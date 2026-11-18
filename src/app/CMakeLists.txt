@@ -74,6 +74,22 @@ set_source_files_properties(${MP_QML_DIR}/RoundedImage.qml PROPERTIES
   QT_RESOURCE_ALIAS RoundedImage.qml
 )
 
+set_source_files_properties(${MP_QML_DIR}/PillButton.qml PROPERTIES
+  QT_RESOURCE_ALIAS PillButton.qml
+)
+set_source_files_properties(${MP_QML_DIR}/TrackRow.qml PROPERTIES
+  QT_RESOURCE_ALIAS TrackRow.qml
+)
+set_source_files_properties(${MP_QML_DIR}/WorkHeader.qml PROPERTIES
+  QT_RESOURCE_ALIAS WorkHeader.qml
+)
+set_source_files_properties(${MP_QML_DIR}/AlbumPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS AlbumPage.qml
+)
+set_source_files_properties(${MP_QML_DIR}/LinkText.qml PROPERTIES
+  QT_RESOURCE_ALIAS LinkText.qml
+)
+
 qt_add_qml_module(music_playeah
   URI MusicPlayeah
   VERSION 1.0
@@ -93,6 +109,11 @@ qt_add_qml_module(music_playeah
     ${MP_QML_DIR}/AlbumsPage.qml
     ${MP_QML_DIR}/Sidebar.qml
     ${MP_QML_DIR}/TransportBar.qml
+    ${MP_QML_DIR}/PillButton.qml
+    ${MP_QML_DIR}/TrackRow.qml
+    ${MP_QML_DIR}/WorkHeader.qml
+    ${MP_QML_DIR}/AlbumPage.qml
+    ${MP_QML_DIR}/LinkText.qml
 )
 
 qt_add_resources(music_playeah "fonts"

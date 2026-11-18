@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
@@ -78,8 +79,13 @@ public:
     // Albums with at least one existing track: id, title, artist, year, artHash ("" = no cover; user
     // override first), tracks, works, instruments.
     Q_INVOKABLE QVariantList albums();
+    // Milestone 4: one album for the Album page: id, title, artist, year, artHash, tracks, durationMs, works,
+    // instruments, plays, genre (most common), composers (most tracks first), format ("FLAC · 24-bit / 96 kHz").
+    // Empty map if there is no such album.
+    Q_INVOKABLE QVariantMap album(qlonglong albumId);
     // Tracks of one album in disc/track order: id, path, title, artist, movementNo, movementName,
-    // workTitle, workId, durationMs, codec. `path` and `title` are what Player.playTracks() wants.
+    // workTitle, workId, durationMs, codec, discNo, trackNo, composer, catalog, plays, workRecordings (albums that
+    // have this work), format. `path` and `title` are what Player.playTracks() wants.
     Q_INVOKABLE QVariantList albumTracks(qlonglong albumId);
     // Works with existing tracks: id, title, catalog, composer, recordings (albums), tracks.
     Q_INVOKABLE QVariantList works();

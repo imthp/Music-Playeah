@@ -120,7 +120,7 @@ Rectangle {
                 Text {
                     id: formatLabel
                     anchors { left: fileIcon.right; leftMargin: 5; right: parent.right; bottom: parent.bottom }
-                    text: bar.formatText(Player.badge)
+                    text: bar.cur.format || bar.formatText(Player.badge)
                     color: Theme.textTertiary; elide: Text.ElideRight
                     font { family: Theme.fontUi; pixelSize: Theme.sizeCaps; features: ({ "tnum": 1 }) }
                 }

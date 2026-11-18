@@ -9,6 +9,7 @@
 #include <exception>
 #include <initializer_list>
 
+#include "core/format.hpp"
 #include "core/library/work_tree.hpp"
 #include "core/text.hpp"
 
@@ -243,7 +244,91 @@ QVariantMap map(std::initializer_list<std::pair<const char*, QVariant>> items) {
     return m;
 }
 
+// Quiet format line (DESIGN.md FormatLine): "FLAC · 24-bit / 96 kHz", "DSD64", "MP3 · 320 kbps".
+QString formatLine(const QString& codec, int bitDepth, int sampleRate, int bitrate) {
+    if (codec.isEmpty()) {
+        return {};
+    }
+    if (codec == QLatin1String("DSD")) {
+        const int multiple = sampleRate / 44'100;
+        return multiple > 0 ? QStringLiteral("DSD%1").arg(multiple) : codec;
+    }
+    const QString khz = sampleRate > 0 ? QString::fromStdString(core::formatKilohertz(sampleRate)) + QStringLiteral(" kHz") : QString();
+    if (bitDepth > 0) {
+        return QStringLiteral("%1 · %2-bit / %3").arg(codec).arg(bitDepth).arg(khz);
+    }
+    if (bitrate > 0) {
+        return QStringLiteral("%1 · %2 kbps").arg(codec).arg(bitrate);
+    }
+    return khz.isEmpty() ? codec : codec + QStringLiteral(" · ") + khz;
+}
+
 }  // namespace
+
+QVariantMap LibraryController::album(qlonglong albumId) {
+    QVariantMap out;
+    if (!library_) {
+        return out;
+    }
+    try {
+        auto& db = library_->db();
+        {
+            auto s = db.prepare(
+                "SELECT a.title, a.album_artist, a.year, COALESCE(o.image_hash, a.art_hash, ''), "
+                "COUNT(t.id), COALESCE(SUM(t.duration_ms), 0), COUNT(DISTINCT t.work_id), "
+                "COALESCE((SELECT group_concat(g.tag, ', ') FROM album_tags g WHERE g.album_id = a.id AND g.kind = 'instrument'), ''), "
+                "(SELECT COUNT(*) FROM plays p JOIN tracks pt ON pt.id = p.track_id WHERE pt.album_id = a.id) "
+                "FROM albums a LEFT JOIN image_overrides o ON o.kind = 'album' AND o.ref_id = a.id "
+                "LEFT JOIN v_tracks t ON t.album_id = a.id AND t.missing_since IS NULL "
+                "WHERE a.id = ?1 GROUP BY a.id");
+            s.bind(1, static_cast<std::int64_t>(albumId));
+            if (!s.step()) {
+                return out;
+            }
+            out = map({{"id", albumId},
+                       {"title", fromUtf8(s.getText(0))},
+                       {"artist", fromUtf8(s.getText(1))},
+                       {"year", static_cast<int>(s.getInt(2))},
+                       {"artHash", fromUtf8(s.getText(3))},
+                       {"tracks", static_cast<int>(s.getInt(4))},
+                       {"durationMs", static_cast<qlonglong>(s.getInt(5))},
+                       {"works", static_cast<int>(s.getInt(6))},
+                       {"instruments", fromUtf8(s.getText(7))},
+                       {"plays", static_cast<int>(s.getInt(8))}});
+        }
+        // Most common genre, composers (by track count) and format of the album's tracks.
+        auto top = [&](const char* sql) {
+            QStringList values;
+            auto s = db.prepare(sql);
+            s.bind(1, static_cast<std::int64_t>(albumId));
+            while (s.step()) {
+                values << fromUtf8(s.getText(0));
+            }
+            return values;
+        };
+        const QStringList genres = top(
+            "SELECT genre FROM v_tracks WHERE album_id = ?1 AND missing_since IS NULL AND genre <> '' "
+            "GROUP BY genre ORDER BY COUNT(*) DESC LIMIT 1");
+        out.insert(QStringLiteral("genre"), genres.value(0));
+        out.insert(QStringLiteral("composers"), top(
+            "SELECT composer FROM v_tracks WHERE album_id = ?1 AND missing_since IS NULL AND composer <> '' "
+            "GROUP BY composer ORDER BY COUNT(*) DESC, MIN(disc_no), MIN(track_no)"));
+        {
+            auto s = db.prepare(
+                "SELECT codec, bit_depth, sample_rate, CAST(AVG(bitrate) AS INTEGER) FROM v_tracks "
+                "WHERE album_id = ?1 AND missing_since IS NULL GROUP BY codec, bit_depth, sample_rate "
+                "ORDER BY COUNT(*) DESC LIMIT 1");
+            s.bind(1, static_cast<std::int64_t>(albumId));
+            if (s.step()) {
+                out.insert(QStringLiteral("format"), formatLine(fromUtf8(s.getText(0)), static_cast<int>(s.getInt(1)),
+                                                              static_cast<int>(s.getInt(2)), static_cast<int>(s.getInt(3))));
+            }
+        }
+    } catch (const std::exception& e) {
+        setError(QString::fromUtf8(e.what()));
+    }
+    return out;
+}
 
 QVariantList LibraryController::albums() {
     QVariantList out;
@@ -285,7 +370,12 @@ QVariantList LibraryController::trackRows(const QString& where, qlonglong a, qlo
         std::string sql =
             "SELECT t.id, t.path, t.title, t.artist, t.movement_no, t.movement_name, COALESCE(w.title, ''), "
             "t.duration_ms, t.codec, t.album_id, al.title, al.album_artist, COALESCE(o.image_hash, al.art_hash, ''), "
-            "al.year, COALESCE(t.work_id, 0) "
+            "al.year, COALESCE(t.work_id, 0), "
+            "t.disc_no, t.track_no, t.composer, COALESCE(w.catalog_no, ''), "
+            "(SELECT COUNT(*) FROM plays p WHERE p.track_id = t.id), "
+            "CASE WHEN t.work_id IS NULL THEN 0 ELSE (SELECT COUNT(DISTINCT r.album_id) FROM tracks r "
+            "  WHERE r.work_id = t.work_id AND r.missing_since IS NULL) END, "
+            "t.sample_rate, t.bit_depth, t.bitrate "
             "FROM v_tracks t LEFT JOIN works w ON w.id = t.work_id LEFT JOIN albums al ON al.id = t.album_id "
             "LEFT JOIN image_overrides o ON o.kind = 'album' AND o.ref_id = t.album_id "
             "WHERE t.missing_since IS NULL AND ";
@@ -310,7 +400,15 @@ QVariantList LibraryController::trackRows(const QString& where, qlonglong a, qlo
                         {"albumArtist", fromUtf8(s.getText(11))},
                         {"albumArtHash", fromUtf8(s.getText(12))},
                         {"albumYear", static_cast<int>(s.getInt(13))},
-                        {"workId", static_cast<qlonglong>(s.getInt(14))}});
+                        {"workId", static_cast<qlonglong>(s.getInt(14))},
+                        {"discNo", static_cast<int>(s.getInt(15))},
+                        {"trackNo", static_cast<int>(s.getInt(16))},
+                        {"composer", fromUtf8(s.getText(17))},
+                        {"catalog", fromUtf8(s.getText(18))},
+                        {"plays", static_cast<int>(s.getInt(19))},
+                        {"workRecordings", static_cast<int>(s.getInt(20))},
+                        {"format", formatLine(fromUtf8(s.getText(8)), static_cast<int>(s.getInt(22)),
+                                              static_cast<int>(s.getInt(21)), static_cast<int>(s.getInt(23)))}});
         }
     } catch (const std::exception& e) {
         setError(QString::fromUtf8(e.what()));

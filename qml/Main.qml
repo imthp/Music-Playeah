@@ -2,7 +2,7 @@ import QtQuick
 import MusicPlayeah
 
 // Application shell (milestone 4): sidebar | page, player bar below.
-// Pages built so far: Albums. Settings shows the milestone 3a library page (watched folders, scanning) until M10.
+// Pages built so far: Albums, Album. Settings shows the milestone 3a library page (watched folders, scanning) until M10.
 // Pages not built yet show a placeholder. Keys: Space play/pause · Left/Right seek 5 s · Ctrl+Left/Right previous/next · Ctrl+K search.
 Window {
     id: root
@@ -15,12 +15,31 @@ Window {
     color: Theme.bg
 
     property string page: "albums"
+    property var albumId: 0
+    property var history: []          // pages to go back to (Album page's back link, Esc)
+
+    function go(key) {
+        if (key === page) return;
+        history = history.concat([page]).slice(-20);
+        page = key;
+    }
+    function openAlbum(id) {
+        if (!id) return;
+        albumId = id;
+        go("album");
+    }
+    function back() {
+        if (history.length === 0) { page = "albums"; return; }
+        page = history[history.length - 1];
+        history = history.slice(0, -1);
+    }
     readonly property var placeholders: ({
         artists: "Artists", songs: "Songs", composers: "Composers", liked: "Liked",
         foryou: "For You", stats: "History & Stats", newplaylist: "Playlists"
     })
 
     Shortcut { sequence: "Space"; onActivated: Player.playPause() }
+    Shortcut { sequence: "Esc"; enabled: root.page === "album"; onActivated: root.back() }
     Shortcut { sequence: "Left"; onActivated: Player.seekBy(-5000) }
     Shortcut { sequence: "Right"; onActivated: Player.seekBy(5000) }
     Shortcut { sequence: "Ctrl+Left"; onActivated: Player.previous() }
@@ -39,8 +58,8 @@ Window {
 
             Sidebar {
                 height: parent.height
-                current: root.page
-                onNavigate: (key) => root.page = key
+                current: root.page === "album" ? "albums" : root.page
+                onNavigate: (key) => { root.history = []; root.page = key; }
             }
 
             Item {
@@ -51,7 +70,15 @@ Window {
                     id: albums
                     anchors.fill: parent
                     visible: root.page === "albums"
-                    onAlbumClicked: (album) => Player.playTracks(Library.albumTracks(album.id), 0, album.title)   // Album page comes next
+                    onAlbumClicked: (album) => root.openAlbum(album.id)
+                }
+                AlbumPage {
+                    anchors.fill: parent
+                    visible: root.page === "album"
+                    albumId: root.albumId
+                    onBack: root.back()
+                    onTagClicked: (tag) => { albums.activeTags = [tag]; root.history = []; root.page = "albums"; }
+                    // Artist / composer pages come in 4b.
                 }
                 LibraryTest {
                     anchors { fill: parent; margins: 24 }
@@ -70,6 +97,7 @@ Window {
         TransportBar {
             id: transport
             width: parent.width
+            onAlbumRequested: (id) => root.openAlbum(id)
         }
     }
 }

@@ -38,7 +38,9 @@ Item {
         "grid": "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
         "square": "M4 4h16v16H4z",
         "file": "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
-        "more": "M12 12h.01M19 12h.01M5 12h.01"
+        "more": "M12 12h.01M19 12h.01M5 12h.01",
+        "bars": "M5 20v-6M10 20V8M15 20v-9M20 20v-4",
+        "addQueue": "M3 6h12M3 12h12M3 18h7M17 14v8M13 18h8"
     })
 
     implicitWidth: size
