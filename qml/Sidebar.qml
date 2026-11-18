@@ -1,0 +1,79 @@
+import QtQuick
+import MusicPlayeah
+
+// 240 px navigation (D44). `current` is the page key; `navigate(key)` is emitted on click.
+Rectangle {
+    id: bar
+    property string current: "albums"
+    signal navigate(string key)
+
+    width: Theme.sidebarWidth
+    color: Theme.surfaceSidebar
+    Rectangle { anchors { right: parent.right; top: parent.top; bottom: parent.bottom } width: 1; color: Theme.borderSubtle }
+
+    component Section: Text {
+        leftPadding: 10; topPadding: 12; bottomPadding: 8
+        color: Theme.textSecondary
+        font { family: Theme.fontUi; pixelSize: Theme.sizeCaps; weight: Font.DemiBold; letterSpacing: 0.9; capitalization: Font.AllUppercase }
+    }
+
+    component NavItem: Item {
+        id: item
+        property string key
+        property string label
+        property string icon
+        readonly property bool active: bar.current === key
+        width: parent ? parent.width : 0
+        height: Theme.hitTarget
+        Rectangle {
+            anchors { fill: parent; topMargin: 3; bottomMargin: 3 }
+            radius: Theme.radiusInput
+            color: item.active ? Theme.accentTint : (mouse.containsMouse ? Theme.rowHover : "transparent")
+        }
+        Icon {
+            id: ico
+            x: 10; anchors.verticalCenter: parent.verticalCenter
+            name: item.icon; size: 18
+            color: item.active ? Theme.accent : Theme.textSecondary
+        }
+        Text {
+            anchors { left: ico.right; leftMargin: 12; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+            text: item.label
+            elide: Text.ElideRight
+            color: item.active ? Theme.textPrimary : Theme.textNav
+            font { family: Theme.fontUi; pixelSize: Theme.sizeBody; weight: item.active ? Font.DemiBold : Font.Medium }
+        }
+        MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: bar.navigate(item.key) }
+    }
+
+    Column {
+        anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: 12; rightMargin: 13; topMargin: 20 }
+        Row {
+            spacing: 10
+            leftPadding: 10; bottomPadding: 16
+            Icon { name: "albums"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
+            Text {
+                text: AppInfo.name
+                color: Theme.textPrimary
+                anchors.verticalCenter: parent.verticalCenter
+                font { family: Theme.fontDisplay; pixelSize: 15; weight: Font.Bold; letterSpacing: -0.15 }
+            }
+        }
+        Section { text: "Library" }
+        NavItem { key: "albums"; label: "Albums"; icon: "albums" }
+        NavItem { key: "artists"; label: "Artists"; icon: "artists" }
+        NavItem { key: "songs"; label: "Songs"; icon: "songs" }
+        NavItem { key: "composers"; label: "Composers"; icon: "composers" }
+        NavItem { key: "liked"; label: "Liked"; icon: "heart" }
+        Section { text: "Listening" }
+        NavItem { key: "foryou"; label: "For You"; icon: "foryou" }
+        NavItem { key: "stats"; label: "History & Stats"; icon: "stats" }
+        Section { text: "Playlists" }
+        NavItem { key: "newplaylist"; label: "New playlist"; icon: "plus" }
+    }
+
+    Column {
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 12; rightMargin: 13; bottomMargin: 16 }
+        NavItem { key: "settings"; label: "Settings"; icon: "settings" }
+    }
+}

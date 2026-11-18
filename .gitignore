@@ -21,3 +21,6 @@ CMakeUserPresets.json
 
 # Learning notes (DECISIONS D17)
 notes/
+
+# Mockups + design brief stay local (planning material, D11)
+design/

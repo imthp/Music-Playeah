@@ -94,6 +94,13 @@ QString Player::title() const {
     return names_.at(currentIndex_);
 }
 
+QVariantMap Player::current() const {
+    if (currentIndex_ < 0 || currentIndex_ >= items_.size()) {
+        return {};
+    }
+    return items_.at(currentIndex_).toMap();
+}
+
 QString Player::positionText() const { return QString::fromStdString(core::formatDuration(positionMs_)); }
 QString Player::durationText() const { return QString::fromStdString(core::formatDuration(durationMs_)); }
 
@@ -120,6 +127,7 @@ void Player::openPath(const QString& path) {
     const QString folder = info.isDir() ? info.absoluteFilePath() : info.absolutePath();
     paths_ = audioFilesIn(folder);
     names_.clear();
+    items_.clear();
     const QDir base(folder);
     for (const QString& p : paths_) {
         names_ << QDir::toNativeSeparators(base.relativeFilePath(p));
@@ -141,6 +149,7 @@ void Player::openPath(const QString& path) {
 void Player::playTracks(const QVariantList& items, int start, const QString& label) {
     paths_.clear();
     names_.clear();
+    items_ = items;
     for (const QVariant& item : items) {
         const QVariantMap map = item.toMap();
         paths_ << map.value(QStringLiteral("path")).toString();

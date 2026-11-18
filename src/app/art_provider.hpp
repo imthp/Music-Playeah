@@ -4,6 +4,7 @@
 #include <QString>
 #include <QThreadPool>
 
+#include <atomic>
 #include <filesystem>
 
 namespace mp::app {
@@ -28,6 +29,7 @@ private:
     std::filesystem::path databaseFile_;
     QString cacheFolder_;
     QThreadPool pool_;
+    std::atomic<int> nextPriority_{0};  // each request outranks the ones before it (newest first)
 };
 
 }  // namespace mp::app

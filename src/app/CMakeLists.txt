@@ -42,6 +42,38 @@ set_source_files_properties(${MP_QML_DIR}/BrowseTest.qml PROPERTIES
   QT_RESOURCE_ALIAS BrowseTest.qml
 )
 
+set_source_files_properties(${MP_QML_DIR}/RoundedImage.qml PROPERTIES
+  QT_RESOURCE_ALIAS RoundedImage.qml
+)
+set_source_files_properties(${MP_QML_DIR}/Icon.qml PROPERTIES
+  QT_RESOURCE_ALIAS Icon.qml
+)
+set_source_files_properties(${MP_QML_DIR}/LineSlider.qml PROPERTIES
+  QT_RESOURCE_ALIAS LineSlider.qml
+)
+set_source_files_properties(${MP_QML_DIR}/Chip.qml PROPERTIES
+  QT_RESOURCE_ALIAS Chip.qml
+)
+set_source_files_properties(${MP_QML_DIR}/SearchField.qml PROPERTIES
+  QT_RESOURCE_ALIAS SearchField.qml
+)
+set_source_files_properties(${MP_QML_DIR}/AlbumCard.qml PROPERTIES
+  QT_RESOURCE_ALIAS AlbumCard.qml
+)
+set_source_files_properties(${MP_QML_DIR}/AlbumsPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS AlbumsPage.qml
+)
+set_source_files_properties(${MP_QML_DIR}/Sidebar.qml PROPERTIES
+  QT_RESOURCE_ALIAS Sidebar.qml
+)
+set_source_files_properties(${MP_QML_DIR}/TransportBar.qml PROPERTIES
+  QT_RESOURCE_ALIAS TransportBar.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/RoundedImage.qml PROPERTIES
+  QT_RESOURCE_ALIAS RoundedImage.qml
+)
+
 qt_add_qml_module(music_playeah
   URI MusicPlayeah
   VERSION 1.0
@@ -51,6 +83,16 @@ qt_add_qml_module(music_playeah
     ${MP_QML_DIR}/BrowseTest.qml
     ${MP_QML_DIR}/VScrollBar.qml
     ${MP_QML_DIR}/Theme.qml
+    ${MP_QML_DIR}/Icon.qml
+    ${MP_QML_DIR}/RoundedImage.qml
+    ${MP_QML_DIR}/RoundedImage.qml
+    ${MP_QML_DIR}/LineSlider.qml
+    ${MP_QML_DIR}/Chip.qml
+    ${MP_QML_DIR}/SearchField.qml
+    ${MP_QML_DIR}/AlbumCard.qml
+    ${MP_QML_DIR}/AlbumsPage.qml
+    ${MP_QML_DIR}/Sidebar.qml
+    ${MP_QML_DIR}/TransportBar.qml
 )
 
 qt_add_resources(music_playeah "fonts"

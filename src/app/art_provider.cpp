@@ -8,6 +8,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 
+#include <limits>
 #include <memory>
 
 #include "core/library/art.hpp"
@@ -149,7 +150,10 @@ QQuickImageResponse* ArtProvider::requestImageResponse(const QString& id, const 
         QMetaObject::invokeMethod(response, [response] { emit response->finished(); }, Qt::QueuedConnection);
         return response;
     }
-    pool_.start(response);
+    // Newest first: when the grid scrolls fast, the covers now on screen jump the queue; older requests whose
+    // cards were destroyed meanwhile are cancelled and skip their work.
+    // (Wraps after ~2 billion requests; the order is briefly wrong once, nothing else.)
+    pool_.start(response, nextPriority_.fetch_add(1, std::memory_order_relaxed) & std::numeric_limits<int>::max());
     return response;
 }
 

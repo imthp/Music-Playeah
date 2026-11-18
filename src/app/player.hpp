@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
@@ -29,6 +30,9 @@ class Player : public QObject {
     Q_PROPERTY(QStringList trackNames READ trackNames NOTIFY trackListChanged)
     Q_PROPERTY(int currentIndex READ currentIndex NOTIFY currentChanged)
     Q_PROPERTY(QString title READ title NOTIFY currentChanged)
+    // Milestone 4: the playing track's map as given to playTracks() (artist, albumTitle, albumId, albumArtHash, albumYear, workId, ...).
+    // Empty when nothing plays or the track came from openPath().
+    Q_PROPERTY(QVariantMap current READ current NOTIFY currentChanged)
     Q_PROPERTY(QString badge READ badge NOTIFY currentChanged)
     Q_PROPERTY(qint64 positionMs READ positionMs NOTIFY positionChanged)
     Q_PROPERTY(qint64 durationMs READ durationMs NOTIFY positionChanged)
@@ -49,6 +53,7 @@ public:
     QStringList trackNames() const { return names_; }
     int currentIndex() const { return currentIndex_; }
     QString title() const;
+    QVariantMap current() const;
     QString badge() const { return badge_; }
     qint64 positionMs() const { return positionMs_; }
     qint64 durationMs() const { return durationMs_; }
@@ -99,6 +104,7 @@ private:
     QString folder_;
     QStringList paths_;
     QStringList names_;
+    QVariantList items_;  // parallel to paths_ (empty maps for folder playback)
     int currentIndex_ = -1;
     int pendingPlay_ = -1;  // asked to play, not audible yet
     QString badge_;
