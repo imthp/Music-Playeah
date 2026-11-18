@@ -274,7 +274,15 @@ TEST_CASE("works: Tchaikovsky's Fifth on three albums, tagged three ways, is one
     REQUIRE(env.scan().fatalError.empty());
     CHECK(env.one("SELECT COUNT(*) FROM works") == 2);
     // The Fifth: one work row, three recordings (albums), six tracks; the Sixth: one recording.
-    CHECK(env.one("SELECT COUNT(*) FROM works WHERE title LIKE '%No. 5 in E minor%' OR title LIKE 'Symphony No.5%'") == 1);
+    {
+        std::string stored;
+        Statement ws = env.lib.db().prepare("SELECT title, replace(titles, char(10), ' | ') FROM works ORDER BY id");
+        while (ws.step()) {
+            stored += "\n  title='" + ws.getText(0) + "' titles=" + ws.getText(1);
+        }
+        INFO("stored works:" << stored);
+        CHECK(env.one("SELECT COUNT(*) FROM works WHERE title LIKE '%No. 5 in E minor%' OR title LIKE 'Symphony No.5%'") == 1);
+    }
     CHECK(env.one("SELECT MAX(n) FROM (SELECT COUNT(DISTINCT album_id) AS n FROM tracks WHERE work_id IS NOT NULL GROUP BY work_id)") == 3);
     CHECK(env.one("SELECT MIN(n) FROM (SELECT COUNT(DISTINCT album_id) AS n FROM tracks WHERE work_id IS NOT NULL GROUP BY work_id)") == 1);
     CHECK(env.one("SELECT COUNT(*) FROM tracks WHERE work_id IS NOT NULL") == 7);
@@ -375,4 +383,29 @@ TEST_CASE("works: the shown title is the most common wording, not the first scan
     REQUIRE(env.scan().fatalError.empty());
     CHECK(env.one("SELECT COUNT(*) FROM works") == 1);
     CHECK(env.one("SELECT COUNT(*) FROM works WHERE title = 'Cello Suite No. 2 in D minor, BWV 1008' AND family_label = 'Cello Suite'") == 1);
+}
+
+TEST_CASE("works: a merge keeps every title, whatever the scan order (D40)", "[works][scan][identity]") {
+    // Two catalog-less albums share one work before it joins the catalogued one. Which of their titles that
+    // work got first depends on the order folders are listed (it differs between Windows and Linux), so run
+    // both orders by swapping the tags between the two folders.
+    const std::string english = "Symphony No.5 in E Minor";
+    const std::string spanish = "Sinfon\xC3\xAD" "a n.\xC2\xBA 5 en mi menor";
+    for (const bool spanishFirst : {false, true}) {
+        Env env;
+        TagSpec op = spec("Mov 1", "Karajan", 1, "Tchaikovsky, Pyotr Ilyich");
+        op.work = "Symphony No. 5 in E minor, Op. 64";
+        env.track("a1/1.wav", op);
+        TagSpec en = spec("Mov 1", "Mravinsky", 1, "Pyotr Ilyich Tchaikovsky");
+        en.work = english;
+        TagSpec es = spec("Mov 1", "Abbado", 1, "Tchaikovsky");
+        es.work = spanish;
+        env.track("a2/1.wav", spanishFirst ? es : en);
+        env.track("a3/1.wav", spanishFirst ? en : es);
+        REQUIRE(env.scan().fatalError.empty());
+        INFO("spanishFirst = " << spanishFirst);
+        CHECK(env.one("SELECT COUNT(*) FROM works") == 1);
+        CHECK(env.one("SELECT COUNT(*) FROM works WHERE instr(titles, '" + english + "') > 0 AND instr(titles, '" + spanish + "') > 0") == 1);
+        CHECK(env.one("SELECT COUNT(*) FROM works WHERE title = '" + english + "'") == 1);  // the shortest of the three
+    }
 }

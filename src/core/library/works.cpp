@@ -38,14 +38,41 @@ std::vector<std::int64_t> mergeNumberedIntoCatalogued(Database& db) {
         }
     }
     Statement move = db.prepare("UPDATE tracks SET work_id = ?2 WHERE work_id = ?1");
-    Statement titles = db.prepare(
-        "UPDATE works SET titles = titles || char(10) || (SELECT title FROM works WHERE id = ?1) "
-        "WHERE id = ?2 AND instr(char(10) || titles || char(10), char(10) || (SELECT title FROM works WHERE id = ?1) || char(10)) = 0");
-    for (const auto& [from, to] : moves) {
-        move.bind(1, from).bind(2, to);
+    // Every title and number key the merged work collected goes along (not only its own title: two
+    // catalog-less albums share one such work, and which title it got depends on scan order).
+    Statement from = db.prepare("SELECT titles, number_key FROM works WHERE id = ?1");
+    Statement add = db.prepare(
+        "UPDATE works SET titles = CASE WHEN ?2 = '' OR instr(char(10) || titles || char(10), char(10) || ?2 || char(10)) > 0 "
+        "OR (length(titles) - length(replace(titles, char(10), ''))) >= 15 THEN titles "
+        "WHEN titles = '' THEN ?2 ELSE titles || char(10) || ?2 END, "
+        "number_key = CASE WHEN ?3 = '' OR instr(char(10) || number_key || char(10), char(10) || ?3 || char(10)) > 0 "
+        "THEN number_key WHEN number_key = '' THEN ?3 ELSE number_key || char(10) || ?3 END WHERE id = ?1");
+    const auto lines = [](const std::string& text) {
+        std::vector<std::string> out;
+        for (std::size_t start = 0; start <= text.size();) {
+            const std::size_t nl = std::min(text.find('\n', start), text.size());
+            if (nl > start) {
+                out.push_back(text.substr(start, nl - start));
+            }
+            start = nl + 1;
+        }
+        return out;
+    };
+    for (const auto& [fromId, to] : moves) {
+        move.bind(1, fromId).bind(2, to);
         move.run();
-        titles.bind(1, from).bind(2, to);
-        titles.run();
+        from.bind(1, fromId);
+        std::vector<std::string> titles;
+        std::vector<std::string> keys;
+        if (from.step()) {
+            titles = lines(from.getText(0));
+            keys = lines(from.getText(1));
+        }
+        from.reset();
+        for (std::size_t i = 0; i < std::max(titles.size(), keys.size()); ++i) {
+            add.bind(1, to).bind(2, i < titles.size() ? titles[i] : std::string()).bind(3, i < keys.size() ? keys[i] : std::string());
+            add.run();
+        }
     }
     std::vector<std::int64_t> targets;
     for (const auto& [from, to] : moves) {
