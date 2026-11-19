@@ -196,7 +196,7 @@ Rectangle {
                     Text {   // work overline, only for movements
                         width: parent.width - 60
                         visible: np.mv !== null
-                        text: np.mv ? np.mv.work + (np.mv.catalog ? "  <font color='" + Theme.textTertiary + "'>· " + np.esc(np.mv.catalog) + "</font>" : "") : ""
+                        text: np.mv ? np.esc(np.mv.work) + (np.mv.catalog ? "  <font color='" + Theme.textTertiary + "'>· " + np.esc(np.mv.catalog) + "</font>" : "") : ""
                         textFormat: Text.StyledText
                         elide: Text.ElideRight; maximumLineCount: 1
                         color: Theme.textMuted

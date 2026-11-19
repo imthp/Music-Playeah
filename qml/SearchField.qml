@@ -10,6 +10,8 @@ Item {
     function focusField() { input.forceActiveFocus(); input.selectAll(); }
     // Focus with the cursor after the text (typing carries on), e.g. when the Search page opens with the first typed letter.
     function focusEnd() { input.forceActiveFocus(); input.cursorPosition = input.length; }
+    // Give the keyboard back to the window (Space, arrows go to the player again). The text stays.
+    function release() { input.focus = false; }
 
     implicitWidth: 280
     implicitHeight: Theme.hitTarget
@@ -22,6 +24,8 @@ Item {
         color: Theme.surfaceSidebar
         border { color: input.activeFocus ? Theme.accent : Theme.borderSubtle; width: 1 }
 
+        // A click anywhere on the field (not only on the text) puts the cursor in it.
+        MouseArea { anchors.fill: parent; cursorShape: Qt.IBeamCursor; onClicked: field.focusEnd() }
         Icon { id: glass; name: "search"; size: 16; color: Theme.textSecondary; x: 12; anchors.verticalCenter: parent.verticalCenter }
         Text {
             id: hint
@@ -40,6 +44,7 @@ Item {
             font { family: Theme.fontUi; pixelSize: Theme.sizeBody }
             clip: true
             onAccepted: field.accepted()
+            Keys.onEscapePressed: input.focus = false   // pages with Back handle Esc first (Main's shortcut)
         }
         Text {
             id: kbd

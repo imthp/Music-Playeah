@@ -167,7 +167,7 @@ Item {
             width: Math.min(560, parent.width - 2 * (backLink.width + 40))
             placeholder: "Search your library"
             onTextChanged: if (text !== page.query) page.queryEdited(text)
-            onAccepted: page.open(page.topItem)
+            onAccepted: { page.open(page.topItem); release(); }
         }
 
         Flow {
