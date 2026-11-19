@@ -258,13 +258,22 @@ ImageSize imageSize(const Bytes& b) {
         return jpegSize(b);
     }
     if (kind == "png" && b.size() >= 24) {
-        return {(be16(b, 16) << 16) | be16(b, 18), (be16(b, 20) << 16) | be16(b, 22)};  // IHDR, big endian
+        // IHDR, big endian. Unsigned so a hostile header can't overflow `int`; the PNG spec caps sides at 2^31-1.
+        auto be32 = [&](std::size_t i) {
+            const std::uint32_t v = (static_cast<std::uint32_t>(be16(b, i)) << 16) | static_cast<std::uint32_t>(be16(b, i + 2));
+            return static_cast<int>(std::min<std::uint32_t>(v, 0x7FFFFFFFu));
+        };
+        return {be32(16), be32(20)};
     }
     if (kind == "gif" && b.size() >= 10) {
         return {le16(b, 6), le16(b, 8)};
     }
     if (kind == "bmp" && b.size() >= 26) {
-        return {std::abs(le32(b, 18)), std::abs(le32(b, 22))};  // height is negative for top-down bitmaps
+        // Height is negative for top-down bitmaps. Widen before abs(): abs(INT_MIN) is undefined.
+        auto side = [&](std::size_t i) {
+            return static_cast<int>(std::min<std::int64_t>(std::abs(static_cast<std::int64_t>(le32(b, i))), 0x7FFFFFFF));
+        };
+        return {side(18), side(22)};
     }
     if (kind == "webp" && b.size() >= 30) {
         if (b[12] == 'V' && b[13] == 'P' && b[14] == '8' && b[15] == ' ') {
@@ -306,11 +315,21 @@ Bytes loadArtSource(const std::string& source) {
     }
     if (source.compare(0, kFile.size(), kFile) == 0) {
         const fs::path path = longPathSafe(pathFromUtf8(std::string_view(source).substr(kFile.size())));
+        // A cover file is chosen by name only, so a huge file called "cover.jpg" must not be read whole into memory.
+        constexpr std::uintmax_t kMaxCoverFileBytes = 64ull * 1024 * 1024;
+        std::error_code ec;
+        const std::uintmax_t size = fs::file_size(path, ec);
+        if (ec || size == 0 || size > kMaxCoverFileBytes) {
+            return {};
+        }
         std::ifstream in(path, std::ios::binary);
         if (!in) {
             return {};
         }
-        return Bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        Bytes out(static_cast<std::size_t>(size));
+        in.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(size));
+        out.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
+        return out;
     }
     return {};
 }

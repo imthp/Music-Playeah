@@ -120,6 +120,15 @@ Window {
         foryou: "For You", stats: "History & Stats", newplaylist: "Playlists"
     })
 
+    // Keyboard focus (PROGRESS 4b bug): a search field keeps the keys only while you are typing in it. Clicking
+    // anywhere else, changing page, opening Now Playing, Esc or Enter give them back, so Space / arrows reach the player.
+    function releaseTextFocus() {
+        const it = root.activeFocusItem;
+        if (it && it instanceof TextInput) it.focus = false;
+    }
+    onPageChanged: if (page !== "search") releaseTextFocus()
+    onNowPlayingOpenChanged: releaseTextFocus()
+
     Shortcut { sequence: "Space"; onActivated: Player.playPause() }
     Shortcut {
         sequence: "Esc"
@@ -267,5 +276,21 @@ Window {
         onAlbumRequested: (id) => { root.nowPlayingOpen = false; root.openAlbum(id); }
         onArtistRequested: (name) => root.openPerson("artist", name)
         onComposerRequested: (name) => root.openPerson("composer", name)
+    }
+
+    // Over everything, but lets every press through (accepted = false): it only notices clicks outside the text field
+    // that has the keyboard, and takes the keyboard back. No hover, no wheel: those are not touched.
+    MouseArea {
+        anchors.fill: parent
+        z: 1000
+        acceptedButtons: Qt.AllButtons
+        onPressed: (m) => {
+            const it = root.activeFocusItem;
+            if (it && it instanceof TextInput) {
+                const p = it.mapFromItem(null, m.x, m.y);
+                if (!it.contains(p)) it.focus = false;
+            }
+            m.accepted = false;
+        }
     }
 }
