@@ -325,6 +325,21 @@ DELETE FROM works;
 // on the next scan (new hashes make new thumbnails; old thumbnail files are simply no longer used).
 void migrateToV6(Database& db) { db.exec("UPDATE albums SET art_checked = 0;"); }
 
+// v7 (M4b, D42, D48): likes of every kind in one table (SPEC §8b3). Player-only, never written to files.
+// ref_id is a tracks / albums / artists / works id depending on kind; no foreign keys, because one table cannot
+// point at four: a scan prunes the likes of rows that no longer exist (core/library/likes.*).
+void migrateToV7(Database& db) {
+    db.exec(R"sql(
+CREATE TABLE likes (
+  kind      TEXT NOT NULL CHECK (kind IN ('track', 'album', 'artist', 'composer', 'work')),
+  ref_id    INTEGER NOT NULL,
+  liked_at  INTEGER NOT NULL,                -- Unix seconds
+  PRIMARY KEY (kind, ref_id)
+) WITHOUT ROWID;
+CREATE INDEX idx_likes_time ON likes(liked_at DESC);
+)sql");
+}
+
 struct Migration {
     int version;
     void (*apply)(Database&);
@@ -337,6 +352,7 @@ constexpr Migration kMigrations[] = {
     {4, migrateToV4},
     {5, migrateToV5},
     {6, migrateToV6},
+    {7, migrateToV7},
 };
 
 }  // namespace

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -9,10 +10,14 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "core/library/library.hpp"
+#include "core/library/likes.hpp"
 #include "core/library/scanner.hpp"
+#include "core/library/search.hpp"
+#include "core/library/search_load.hpp"
 #include "core/library/work_tree.hpp"
 
 namespace mp::app {
@@ -45,6 +50,9 @@ class LibraryController : public QObject {
     // bindings that read `revision` re-run their queries.
     Q_PROPERTY(int revision READ revision NOTIFY revisionChanged)
     Q_PROPERTY(QString worksSummary READ worksSummary NOTIFY revisionChanged)
+    // Milestone 4b: bumps whenever a like is added or removed (or the likes were reloaded after a scan), so QML
+    // bindings that read `likesRevision` re-ask isLiked(). See LikeState.qml.
+    Q_PROPERTY(int likesRevision READ likesRevision NOTIFY likesChanged)
 
 public:
     explicit LibraryController(QObject* parent = nullptr);
@@ -66,6 +74,7 @@ public:
     QString errorText() const { return errorText_; }
     int revision() const { return revision_; }
     QString worksSummary() const { return worksSummary_; }
+    int likesRevision() const { return likesRevision_; }
 
     // Adds a music folder (from a FolderDialog) and scans it.
     Q_INVOKABLE void addFolder(const QUrl& folder);
@@ -105,6 +114,55 @@ public:
     // sampleTitle. The "wrong or missed" list that milestone 7 (metadata fixes) works from.
     Q_INVOKABLE QVariantList undetectedClassical();
 
+    // ---- Milestone 4b (library_controller_browse.cpp) -------------------------------------------------------
+    // Likes (SPEC §8b3, D42). `kind` is "track", "album", "artist", "composer" or "work"; `id` the matching row id
+    // (for a composer: `person().id`, D49). The heart changes at once (optimistic) and the write follows; if the
+    // write fails the heart goes back and errorText says why.
+    Q_INVOKABLE bool isLiked(const QString& kind, qlonglong id) const;
+    Q_INVOKABLE bool setLiked(const QString& kind, qlonglong id, bool liked);  // returns the state afterwards
+    Q_INVOKABLE bool toggleLike(const QString& kind, qlonglong id);            // returns the state afterwards
+    // How many items of each kind are liked (existing items only): {track, album, artist, composer, work}.
+    Q_INVOKABLE QVariantMap likedCounts();
+    // The liked items of one kind, newest like first, each with `likedAt` (Unix seconds).
+    // track: maps as albumTracks() · album: maps as albums() · artist: {id, name, albums, tracks} ·
+    // composer: {id, name, works, recordings} · work: maps as works().
+    Q_INVOKABLE QVariantList liked(const QString& kind);
+
+    // Tracks by id, in the order given (for playing search results). Maps as albumTracks().
+    Q_INVOKABLE QVariantList tracksByIds(const QVariantList& ids);
+    // Whole albums back to back, in the order given (Liked "Play all"). One query.
+    Q_INVOKABLE QVariantList tracksOfAlbums(const QVariantList& albumIds);
+    // For each work, in the order given, its movements from the first recording you own (album order, as
+    // workRecordings()). One query (Composer "Play works", Liked works).
+    Q_INVOKABLE QVariantList tracksOfWorks(const QVariantList& workIds);
+
+    // A person page's header. kind "artist": {kind, id (0 = unknown name), name, albums (led), appearances, tracks,
+    // plays}. kind "composer": {kind, id, name (longest spelling), works, recordings, albums}. `name` may be any
+    // spelling the tags use (D49). An unknown name gives id 0.
+    Q_INVOKABLE QVariantMap person(const QString& kind, const QString& name);
+    // Albums the artist leads (album artist) / appears on (performs on a track of an album led by someone else).
+    Q_INVOKABLE QVariantList artistAlbums(qlonglong artistId, bool appearsOn);
+    // The artist's tracks, most played first (then album order); limit 0 = all. Maps as albumTracks().
+    Q_INVOKABLE QVariantList artistTracks(qlonglong artistId, int limit);
+    // A composer's works as families (D38): [{label, catalogRange, works: [{id, title, catalog, recordings, tracks,
+    // form, instrument}]}], in the order of Browse → Works. `form` / `instrument` ("suite", "cello"; "" = unknown)
+    // feed the page's filter chips.
+    Q_INVOKABLE QVariantList composerWorks(const QString& name);
+    // Albums with tracks tagged with this composer: the fallback for a composer without detected works.
+    Q_INVOKABLE QVariantList composerAlbums(const QString& name);
+    // Every recording (album) of a work you own: albumId, albumTitle, albumArtist, artHash, year, durationMs, tracks.
+    // Albums holding a work: {albumId, albumTitle, albumArtist, artHash, year, durationMs, tracks, plays, lastPlayed
+    // (Unix seconds, 0 = never), instruments ("guitar, lute")}, in album order.
+    Q_INVOKABLE QVariantList workRecordings(qlonglong workId);
+    // One work for the Work page: {id, title, catalog, composer, recordings, tracks}; empty map if it has no tracks.
+    Q_INVOKABLE QVariantMap work(qlonglong workId);
+
+    // Search (SPEC §10). `kind`: "" = all kinds, 6 hits each; "song", "album", "artist", "composer" or "work" = that
+    // kind only, up to 100 hits. Result: {query, top (map or null), song, album, artist, composer, work (lists of
+    // {kind, id, title, subtitle, detail, albumId, artHash, durationMs, count1, count2}), totals {kind: matches}}.
+    // The index is built from the database on the first search after a change; a search takes a few milliseconds.
+    Q_INVOKABLE QVariantMap search(const QString& query, const QString& kind = QString());
+
 signals:
     void foldersChanged();
     void scanningChanged();
@@ -113,6 +171,7 @@ signals:
     void summaryChanged();
     void errorTextChanged();
     void revisionChanged();
+    void likesChanged();
 
 private:
     void handleProgress(const core::library::ScanProgress& progress);
@@ -120,8 +179,20 @@ private:
     void refreshFolders();
     void refreshCounts();
     void refreshWorksSummary();
-    QVariantList trackRows(const QString& where, qlonglong a, qlonglong b, const QString& orderBy);
-    std::vector<core::library::WorkEntry> workEntries();
+    QVariantList trackRows(const QString& where, qlonglong a, qlonglong b, const QString& orderBy, int limit = 0);
+    QVariantList albumRows(const QString& where, qlonglong a);
+    // 4b
+    void reloadLikes();
+    static qint64 likeKey(core::library::LikeKind kind, qlonglong id) { return id * 8 + static_cast<int>(kind); }
+    std::optional<std::int64_t> artistIdByName(const QString& name);
+    // The composer (D49) whose spelling group contains this artists row, or nullptr.
+    const core::library::ComposerSummary* composerOfArtist(const std::vector<core::library::ComposerSummary>& all, std::int64_t artistId) const;
+    QVariantList worksWhere(const QString& where, const QString& orderBy);
+    const core::library::SearchIndex& searchIndex();
+    std::vector<core::library::WorkEntry> workEntries(const std::string& where = {});
+    // Composers as people (D49), loaded once per library revision: person(), composerWorks(), likes and counts all
+    // need them, and loading groups every work.
+    const std::vector<core::library::ComposerSummary>& composers();
     void setError(const QString& text);
 
     QString databasePath_;
@@ -139,10 +210,17 @@ private:
     QString errorText_;
     int revision_ = 0;
     QString worksSummary_;
+    int likesRevision_ = 0;
+    QHash<qint64, qint64> likes_;  // likeKey(kind, id) -> liked_at; the whole table, it stays small
+    std::unique_ptr<core::library::SearchIndex> searchIndex_;
+    int searchIndexRevision_ = -1;  // `revision_` the index was built at
+    std::vector<core::library::ComposerSummary> composers_;
+    int composersRevision_ = -1;
 
     // Order matters: the scanner (its threads) is destroyed before the library it reads from.
     std::unique_ptr<core::library::Library> library_;
     std::unique_ptr<core::library::Scanner> scanner_;
+    std::unique_ptr<core::library::Likes> likesStore_;  // after library_: uses its connection
 };
 
 }  // namespace mp::app

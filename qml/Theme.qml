@@ -25,6 +25,8 @@ QtObject {
     readonly property color textSecondary: "#A1A1AA"
     readonly property color textTertiary: "#8B8B94"
     readonly property color heartIdle: "#5A5A63"
+    readonly property color avatarBg: "#1E1E23"          // round placeholder for artist / composer photos (M9 brings photos)
+    readonly property color avatarBorder: "#2A2A30"
     readonly property color knob: "#F4F4F5"
 
     // States

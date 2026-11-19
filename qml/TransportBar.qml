@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 import MusicPlayeah
 import "WorkTitles.js" as WorkTitles
 
@@ -15,6 +16,9 @@ Rectangle {
     signal artistRequested(string name)
 
     readonly property var cur: Player.current
+    Settings { id: timePrefs; category: "player"; property bool showRemaining: false }
+    property alias showRemaining: timePrefs.showRemaining
+    LikeState { id: trackLike; kind: "track"; refId: bar.cur.id || 0 }
     readonly property string artHash: cur.albumArtHash || ""
     readonly property real ui: 1
     function px(v) { return Math.round(v * ui); }
@@ -41,6 +45,7 @@ Rectangle {
         property int size: bar.px(44)
         property int iconSize: bar.px(18)
         property bool primary: false
+        property bool iconFilled: false
         property bool enabledAction: true
         property color tint: Theme.textPrimary
         signal clicked()
@@ -55,7 +60,7 @@ Rectangle {
             name: rb.icon
             size: rb.iconSize
             color: rb.primary ? Theme.bg : rb.tint
-            filled: ["play", "pause", "prev", "next"].indexOf(rb.icon) >= 0
+            filled: rb.iconFilled || ["play", "pause", "prev", "next"].indexOf(rb.icon) >= 0
         }
         MouseArea {
             id: rbMouse
@@ -176,10 +181,21 @@ Rectangle {
                 value: Player.durationMs > 0 ? Player.positionMs / Player.durationMs : 0
                 onReleased: (v) => Player.seek(Math.round(v * Player.durationMs))
             }
+            // Click: switch between the track length and the time left ("−1:23"). Remembered; Now Playing follows.
             TimeText {
                 id: dur
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                text: Player.durationText
+                text: bar.showRemaining && Player.durationMs > 0
+                      ? "−" + bar.formatMs(Player.durationMs - (progress.dragging ? Player.durationMs * progress.dragValue : Player.positionMs))
+                      : Player.durationText
+                color: durMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
+                MouseArea {
+                    id: durMouse
+                    anchors { fill: parent; margins: -10 }
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: bar.showRemaining = !bar.showRemaining
+                }
             }
         }
     }
@@ -189,7 +205,14 @@ Rectangle {
         anchors { right: parent.right; rightMargin: bar.px(28); verticalCenter: parent.verticalCenter }
         height: bar.px(44)
         spacing: bar.px(12)
-        RoundButton { anchors.verticalCenter: parent.verticalCenter; icon: "heart"; iconSize: bar.px(17); tint: Theme.heartIdle; enabledAction: false }   // likes: slice 2
+        RoundButton {
+            anchors.verticalCenter: parent.verticalCenter
+            icon: "heart"; iconSize: bar.px(17)
+            iconFilled: trackLike.liked
+            tint: trackLike.liked ? Theme.accent : Theme.heartIdle
+            enabledAction: (bar.cur.id || 0) > 0
+            onClicked: trackLike.toggle()
+        }
         RoundButton { anchors.verticalCenter: parent.verticalCenter; icon: "queue"; tint: Theme.textSecondary; enabledAction: false }                    // M5
         Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume"; size: bar.px(18); color: Theme.textSecondary }
         LineSlider {

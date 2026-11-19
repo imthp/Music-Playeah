@@ -8,6 +8,8 @@ Item {
     property alias placeholder: hint.text
     signal accepted()
     function focusField() { input.forceActiveFocus(); input.selectAll(); }
+    // Focus with the cursor after the text (typing carries on), e.g. when the Search page opens with the first typed letter.
+    function focusEnd() { input.forceActiveFocus(); input.cursorPosition = input.length; }
 
     implicitWidth: 280
     implicitHeight: Theme.hitTarget

@@ -42,7 +42,7 @@ TEST_CASE("A new database gets the full schema (SPEC section 6)", "[db]") {
     const auto tables = namesOf(db, "table");
     for (const char* name : {"folders", "tracks", "albums", "artists", "works", "credits", "album_tags", "plays",
                              "playlists", "playlist_items", "scrobble_queue", "lastfm_cache", "waveforms",
-                             "artist_info", "tag_overrides", "image_overrides"}) {
+                             "artist_info", "tag_overrides", "image_overrides", "likes"}) {
         CHECK(tables.count(name) == 1);
     }
     CHECK(namesOf(db, "view").count("v_tracks") == 1);

@@ -10,7 +10,9 @@ qt_add_executable(music_playeah
   player.cpp
   player.hpp
   library_controller.cpp
+  library_controller_browse.cpp
   library_controller.hpp
+  library_util.hpp
 )
 
 # One implementation of platform/window_style.hpp per OS (D22). Windows API calls live only in platform/win/.
@@ -102,8 +104,68 @@ set_source_files_properties(${MP_QML_DIR}/PlayingBars.qml PROPERTIES
   QT_RESOURCE_ALIAS PlayingBars.qml
 )
 
-set_source_files_properties(${MP_QML_DIR}/PersonPage.qml PROPERTIES
-  QT_RESOURCE_ALIAS PersonPage.qml
+set_source_files_properties(${MP_QML_DIR}/Format.js PROPERTIES
+  QT_RESOURCE_ALIAS Format.js
+)
+
+set_source_files_properties(${MP_QML_DIR}/LikeState.qml PROPERTIES
+  QT_RESOURCE_ALIAS LikeState.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/HeartButton.qml PROPERTIES
+  QT_RESOURCE_ALIAS HeartButton.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/Avatar.qml PROPERTIES
+  QT_RESOURCE_ALIAS Avatar.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/TopBar.qml PROPERTIES
+  QT_RESOURCE_ALIAS TopBar.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/SegmentedControl.qml PROPERTIES
+  QT_RESOURCE_ALIAS SegmentedControl.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/SongRow.qml PROPERTIES
+  QT_RESOURCE_ALIAS SongRow.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/WorkRow.qml PROPERTIES
+  QT_RESOURCE_ALIAS WorkRow.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/PersonRow.qml PROPERTIES
+  QT_RESOURCE_ALIAS PersonRow.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/AlbumRow.qml PROPERTIES
+  QT_RESOURCE_ALIAS AlbumRow.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/ArtistPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS ArtistPage.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/ComposerPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS ComposerPage.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/LikedPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS LikedPage.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/SearchPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS SearchPage.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/WorkPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS WorkPage.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/SmoothScroll.qml PROPERTIES
+  QT_RESOURCE_ALIAS SmoothScroll.qml
 )
 
 qt_add_qml_module(music_playeah
@@ -133,7 +195,22 @@ qt_add_qml_module(music_playeah
     ${MP_QML_DIR}/NowPlaying.qml
     ${MP_QML_DIR}/WorkTitles.js
     ${MP_QML_DIR}/PlayingBars.qml
-    ${MP_QML_DIR}/PersonPage.qml
+    ${MP_QML_DIR}/Format.js
+    ${MP_QML_DIR}/LikeState.qml
+    ${MP_QML_DIR}/HeartButton.qml
+    ${MP_QML_DIR}/Avatar.qml
+    ${MP_QML_DIR}/TopBar.qml
+    ${MP_QML_DIR}/SegmentedControl.qml
+    ${MP_QML_DIR}/SongRow.qml
+    ${MP_QML_DIR}/WorkRow.qml
+    ${MP_QML_DIR}/PersonRow.qml
+    ${MP_QML_DIR}/AlbumRow.qml
+    ${MP_QML_DIR}/ArtistPage.qml
+    ${MP_QML_DIR}/ComposerPage.qml
+    ${MP_QML_DIR}/LikedPage.qml
+    ${MP_QML_DIR}/SearchPage.qml
+    ${MP_QML_DIR}/WorkPage.qml
+    ${MP_QML_DIR}/SmoothScroll.qml
 )
 
 qt_add_resources(music_playeah "fonts"

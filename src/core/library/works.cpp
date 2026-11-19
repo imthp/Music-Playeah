@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/library/likes.hpp"
 #include "core/library/work_identity.hpp"
 #include "core/library/work_parser.hpp"
 #include "core/library/work_tree.hpp"
@@ -61,6 +62,7 @@ std::vector<std::int64_t> mergeNumberedIntoCatalogued(Database& db) {
     for (const auto& [fromId, to] : moves) {
         move.bind(1, fromId).bind(2, to);
         move.run();
+        moveWorkLikes(db, fromId, to);  // a liked work stays liked after the merge (D48)
         from.bind(1, fromId);
         std::vector<std::string> titles;
         std::vector<std::string> keys;
@@ -271,6 +273,7 @@ WorkStats resolveWorks(Database& db) {
     storeFamilies(db, touched);
     db.exec(
         "DELETE FROM works WHERE NOT EXISTS (SELECT 1 FROM tracks WHERE work_id = works.id)");
+    pruneLikes(db);  // a deleted work's id can be reused by a new one (D48)
     tx.commit();
     return stats;
 }

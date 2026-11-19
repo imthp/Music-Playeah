@@ -67,16 +67,21 @@ Rectangle {
     Rectangle { anchors.fill: parent; color: Qt.rgba(14 / 255, 14 / 255, 16 / 255, 0.55) }
 
     // ---- top bar
+    property bool showRemaining: false   // from the player bar's remembered choice
+    signal remainingToggled()
+    LikeState { id: npLike; kind: "track"; refId: Player.current.id || 0 }
+
     component GlassButton: Item {
         id: gb
         property string icon
         property int size: 44
+        property bool iconFilled: false
         property color tint: Theme.textPrimary
         property bool enabledAction: true
         signal clicked()
         width: size; height: size
         Rectangle { anchors.fill: parent; radius: width / 2; color: gbMouse.containsMouse && gb.enabledAction ? "#24FFFFFF" : "#14FFFFFF" }
-        Icon { anchors.centerIn: parent; name: gb.icon; size: 18; color: gb.tint; opacity: gb.enabledAction ? 1 : 0.4 }
+        Icon { anchors.centerIn: parent; name: gb.icon; size: 18; filled: gb.iconFilled; color: gb.tint; opacity: gb.enabledAction ? 1 : 0.4 }
         MouseArea { id: gbMouse; anchors.fill: parent; hoverEnabled: true; enabled: gb.enabledAction; cursorShape: Qt.PointingHandCursor; onClicked: gb.clicked() }
     }
 
@@ -220,7 +225,14 @@ Rectangle {
                             lineHeight: 1.05
                             font { family: Theme.fontDisplay; pixelSize: Math.round(Theme.sizeAlbumTitle * body.k); weight: Font.Bold; letterSpacing: -1.1 * body.k }
                         }
-                        GlassButton { anchors.verticalCenter: parent.verticalCenter; size: 48; icon: "heart"; tint: Theme.textSecondary; enabledAction: false }   // likes: 4b
+                        GlassButton {
+                            anchors.verticalCenter: parent.verticalCenter
+                            size: 48; icon: "heart"
+                            iconFilled: npLike.liked
+                            tint: npLike.liked ? Theme.accent : Theme.textSecondary
+                            enabledAction: (Player.current.id || 0) > 0
+                            onClicked: npLike.toggle()
+                        }
                     }
                     LinkText {
                         maxWidth: parent.width
@@ -306,11 +318,21 @@ Rectangle {
                             color: Theme.textMuted
                             font { family: Theme.fontUi; pixelSize: Theme.sizeBody - 1; features: ({ "tnum": 1 }) }
                         }
+                        // Click: track length <-> time left (same choice as the player bar).
                         Text {
                             anchors.right: parent.right
-                            text: "−" + np.time(Player.durationMs - (bigSeek.pressed ? Player.durationMs * bigSeek.dragValue : Player.positionMs))
-                            color: Theme.textMuted
+                            text: np.showRemaining
+                                  ? "−" + np.time(Player.durationMs - (bigSeek.pressed ? Player.durationMs * bigSeek.dragValue : Player.positionMs))
+                                  : np.time(Player.durationMs)
+                            color: npDurMouse.containsMouse ? Theme.textPrimary : Theme.textMuted
                             font { family: Theme.fontUi; pixelSize: Theme.sizeBody - 1; features: ({ "tnum": 1 }) }
+                            MouseArea {
+                                id: npDurMouse
+                                anchors { fill: parent; margins: -10 }
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: np.remainingToggled()
+                            }
                         }
                     }
                     // controls: 44 · 48 · 60 · 48 · 44 over 360 px, fixed size: they don't grow full screen (felt too big there).

@@ -10,6 +10,7 @@
 #include <initializer_list>
 
 #include "core/format.hpp"
+#include "library_util.hpp"
 #include "core/library/work_tree.hpp"
 #include "core/text.hpp"
 
@@ -18,8 +19,6 @@ namespace mp::app {
 namespace {
 
 std::filesystem::path toPath(const QString& text) { return core::pathFromUtf8(text.toUtf8().toStdString()); }
-
-QString fromUtf8(const std::string& text) { return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size())); }
 
 QString number(std::uint64_t n) { return QLocale().toString(static_cast<qulonglong>(n)); }
 
@@ -35,6 +34,7 @@ LibraryController::LibraryController(QObject* parent) : QObject(parent) {
     try {
         library_ = std::make_unique<core::library::Library>(toPath(file));
         scanner_ = std::make_unique<core::library::Scanner>(library_->dbFile());
+        likesStore_ = std::make_unique<core::library::Likes>(library_->db());
         refreshFolders();
         refreshCounts();
         // After a database upgrade (or an interrupted scan) some tracks still wait to be grouped into works.
@@ -73,6 +73,7 @@ void LibraryController::refreshCounts() {
     missingCount_ = static_cast<int>(counts.missing);
     emit countsChanged();
     refreshWorksSummary();
+    reloadLikes();  // a scan prunes the likes of rows that are gone (D48)
 }
 
 void LibraryController::refreshWorksSummary() {
@@ -236,14 +237,6 @@ void LibraryController::handleDone(const core::library::ScanSummary& s) {
 
 namespace {
 
-QVariantMap map(std::initializer_list<std::pair<const char*, QVariant>> items) {
-    QVariantMap m;
-    for (const auto& [key, value] : items) {
-        m.insert(QString::fromLatin1(key), value);
-    }
-    return m;
-}
-
 // Quiet format line (DESIGN.md FormatLine): "FLAC · 24-bit / 96 kHz", "DSD64", "MP3 · 320 kbps".
 QString formatLine(const QString& codec, int bitDepth, int sampleRate, int bitrate) {
     if (codec.isEmpty()) {
@@ -351,13 +344,16 @@ QVariantMap LibraryController::album(qlonglong albumId) {
     return out;
 }
 
-QVariantList LibraryController::albums() {
+QVariantList LibraryController::albums() { return albumRows(QStringLiteral("?1 = ?1"), 0); }
+
+// Shared by albums() and the artist / liked pages: `where` (using ?1) narrows the albums that have existing tracks.
+QVariantList LibraryController::albumRows(const QString& where, qlonglong a) {
     QVariantList out;
     if (!library_) {
         return out;
     }
     try {
-        auto s = library_->db().prepare(
+        auto s = library_->db().prepare(std::string(
             "SELECT a.id, a.title, a.album_artist, a.year, COALESCE(o.image_hash, a.art_hash, ''), "
             "(SELECT COUNT(*) FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL), "
             "(SELECT COUNT(DISTINCT t.work_id) FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL AND t.work_id IS NOT NULL), "
@@ -369,8 +365,9 @@ QVariantList LibraryController::albums() {
             "COALESCE((SELECT group_concat(c, char(10)) FROM (SELECT DISTINCT v.composer AS c FROM v_tracks v "
             "          WHERE v.album_id = a.id AND v.missing_since IS NULL AND v.composer <> '')), '') "
             "FROM albums a LEFT JOIN image_overrides o ON o.kind = 'album' AND o.ref_id = a.id "
-            "WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL) "
-            "ORDER BY a.sort_key");
+            "WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL) AND (") +
+            where.toStdString() + ") ORDER BY a.sort_key");
+        s.bind(1, static_cast<std::int64_t>(a));
         while (s.step()) {
             out << map({{"id", static_cast<qlonglong>(s.getInt(0))},
                         {"title", fromUtf8(s.getText(1))},
@@ -390,7 +387,7 @@ QVariantList LibraryController::albums() {
 }
 
 // Shared by albumTracks / workTracks / workMovements: `where` uses ?1 and ?2.
-QVariantList LibraryController::trackRows(const QString& where, qlonglong a, qlonglong b, const QString& orderBy) {
+QVariantList LibraryController::trackRows(const QString& where, qlonglong a, qlonglong b, const QString& orderBy, int limit) {
     QVariantList out;
     if (!library_) {
         return out;
@@ -411,6 +408,9 @@ QVariantList LibraryController::trackRows(const QString& where, qlonglong a, qlo
         sql += where.toStdString();
         sql += " ORDER BY ";
         sql += orderBy.toStdString();
+        if (limit > 0) {
+            sql += " LIMIT " + std::to_string(limit);
+        }
         auto s = library_->db().prepare(sql);
         s.bind(1, static_cast<std::int64_t>(a));
         s.bind(2, static_cast<std::int64_t>(b));
@@ -461,7 +461,7 @@ QVariantList LibraryController::workMovements(qlonglong workId) {
 }
 
 // Rows of `works` that have existing tracks, in composer then title order.
-std::vector<core::library::WorkEntry> LibraryController::workEntries() {
+std::vector<core::library::WorkEntry> LibraryController::workEntries(const std::string& where) {
     std::vector<core::library::WorkEntry> out;
     if (!library_) {
         return out;
@@ -473,7 +473,8 @@ std::vector<core::library::WorkEntry> LibraryController::workEntries() {
             "(SELECT COUNT(DISTINCT t.album_id) FROM tracks t WHERE t.work_id = w.id AND t.missing_since IS NULL), "
             "(SELECT COUNT(*) FROM tracks t WHERE t.work_id = w.id AND t.missing_since IS NULL) "
             "FROM works w LEFT JOIN artists c ON c.id = w.composer_id "
-            "WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.work_id = w.id AND t.missing_since IS NULL) "
+            "WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.work_id = w.id AND t.missing_since IS NULL) " +
+            (where.empty() ? std::string() : " AND (" + where + ") ") +
             "ORDER BY COALESCE(c.sort_name, ''), w.sort_key");
         while (s.step()) {
             core::library::WorkEntry w;

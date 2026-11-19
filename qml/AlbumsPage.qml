@@ -1,6 +1,7 @@
 import QtQuick
 import QtCore
 import MusicPlayeah
+import "Format.js" as Format
 
 // Albums grid (M4-Albums): title and counts, search, sort chips, instrument filter chips, cover-size slider.
 Item {
@@ -106,7 +107,7 @@ Item {
                     spacing: 8
                     Repeater {
                         model: page.tagList
-                        delegate: Chip { required property string modelData; text: modelData; selected: page.activeTags.indexOf(modelData) >= 0; onClicked: page.toggleTag(modelData) }
+                        delegate: Chip { required property string modelData; text: Format.capitalize(modelData); selected: page.activeTags.indexOf(modelData) >= 0; onClicked: page.toggleTag(modelData) }
                     }
                 }
             }
@@ -156,6 +157,7 @@ Item {
             }
         }
     }
+    SmoothScroll { anchors.fill: grid; flickable: grid }
     VScrollBar { flickable: grid; anchors { right: parent.right; rightMargin: 6; top: grid.top; bottom: grid.bottom } }
 
     Text {

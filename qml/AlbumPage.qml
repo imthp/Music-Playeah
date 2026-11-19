@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import MusicPlayeah
+import "Format.js" as Format
 
 // Album detail (M4-Album). Header (cover, title, performer · composer, meta + format, instrument chips, actions),
 // then the tracks. Classical albums: consecutive movements of one work are grouped under a WorkHeader (SPEC §7b);
@@ -14,10 +15,16 @@ Item {
     signal tagClicked(string tag)
     signal artistClicked(string name)
     signal composerClicked(string name)
+    signal workClicked(var workId)    // "N recordings in your library": the Work page
+    signal searchRequested(string text)
 
     property var info: ({})
     property var tracks: []
     property var rows: []
+    property var focusWorkId: 0      // opened from a work (Work / Composer page): scroll to it and flash it
+    property var flashWorkId: 0
+
+    LikeState { id: albumLike; kind: "album"; refId: page.albumId }
 
     function reload() {
         if (!albumId) { info = {}; tracks = []; rows = []; return; }
@@ -25,8 +32,23 @@ Item {
         tracks = Library.albumTracks(albumId);
         rows = buildRows(tracks);
         list.positionViewAtBeginning();
+        if (focusWorkId) Qt.callLater(scrollToWork);
     }
     onAlbumIdChanged: reload()
+    onFocusWorkIdChanged: if (focusWorkId && rows.length > 0) Qt.callLater(scrollToWork)
+
+    // The work's header (or its first track when the album has a single movement of it) goes to the top of the list,
+    // then the work flashes so the eye finds it.
+    function scrollToWork() {
+        const i = rows.findIndex(r => (r.kind === "work" && r.workId === focusWorkId)
+                                      || (r.kind === "track" && r.track && r.track.workId === focusWorkId));
+        if (i < 0) return;
+        list.positionViewAtIndex(i, ListView.Beginning);
+        list.returnToBounds();
+        flashWorkId = focusWorkId;
+        flashTimer.restart();
+    }
+    Timer { id: flashTimer; interval: 1600; onTriggered: page.flashWorkId = 0 }
     Connections { target: Library; function onRevisionChanged() { page.reload(); } }
 
     // ---------------------------------------------------------------- formatting
@@ -54,6 +76,7 @@ Item {
         if (i <= 0) return title;
         return (title.slice(0, i) + title.slice(i + catalog.length)).replace(/[\s,;:–-]+$/, "").replace(/\s*,\s*,/, ",").trim();
     }
+    function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
     function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
 
     // ---------------------------------------------------------------- rows
@@ -78,10 +101,9 @@ Item {
             if (t.workId && j - i >= 2) {
                 const group = list.slice(i, j);
                 const total = group.reduce((a, g) => a + g.durationMs, 0);
-                let meta = plural(group.length, "movement") + " · " + time(total);
-                if (t.workRecordings > 1) meta += " · " + t.workRecordings + " recordings in your library";
+                const meta = plural(group.length, "movement") + " · " + time(total);
                 out.push({ kind: "work", workId: t.workId, title: stripCatalog(t.workTitle, t.catalog), catalog: t.catalog,
-                           meta: meta, first: i, count: j - i, ids: group.map(g => g.id), firstRow: out.length === 0 });
+                           meta: meta, recordings: t.workRecordings || 0, composer: t.composer || "", first: i, count: j - i, ids: group.map(g => g.id), firstRow: out.length === 0 });
                 group.forEach((g, k) => out.push({
                     kind: "track", index: i + k, track: g, indent: true, last: k === group.length - 1,
                     number: g.movementNo > 0 ? roman(g.movementNo) + "." : String(k + 1),
@@ -120,24 +142,12 @@ Item {
 
     // ---------------------------------------------------------------- top bar: back + search
 
-    Item {
+    TopBar {
         id: topBar
         anchors { left: parent.left; right: parent.right; top: parent.top; leftMargin: Theme.pagePaddingSides; rightMargin: Theme.pagePaddingSides; topMargin: Theme.pagePaddingTop }
-        height: Theme.hitTarget
-        Row {
-            id: backLink
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 6
-            Icon { anchors.verticalCenter: parent.verticalCenter; name: "chevronLeft"; size: 16; color: backMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: page.backLabel
-                color: backMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
-                font { family: Theme.fontUi; pixelSize: Theme.sizeBody - 1; weight: Font.Medium }
-            }
-        }
-        MouseArea { id: backMouse; anchors { fill: backLink; margins: -10 } hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: page.back() }
-        SearchField { anchors { right: parent.right; verticalCenter: parent.verticalCenter } width: 300; placeholder: "Search albums, artists, songs, works" }
+        backLabel: page.backLabel
+        onBack: page.back()
+        onSearchRequested: (text) => page.searchRequested(text)
     }
 
     // ---------------------------------------------------------------- list
@@ -260,7 +270,7 @@ Item {
                         spacing: 8
                         Repeater {
                             model: (page.info.instruments || "").length > 0 ? page.info.instruments.split(", ") : []
-                            delegate: Chip { required property string modelData; text: modelData; onClicked: page.tagClicked(modelData) }
+                            delegate: Chip { required property string modelData; text: Format.capitalize(modelData); onClicked: page.tagClicked(modelData) }
                         }
                     }
                     // actions
@@ -269,7 +279,13 @@ Item {
                         spacing: 10
                         PillButton { text: "Play"; icon: "play"; primary: true; onClicked: page.playFrom(0) }
                         PillButton { text: page.hasWorks ? "Shuffle works" : "Shuffle"; icon: "shuffle"; onClicked: page.shuffleWorks() }
-                        PillButton { icon: "heart"; enabledAction: false }      // likes: 4b
+                        PillButton {
+                            icon: "heart"
+                            enabledAction: (page.albumId || 0) > 0
+                            iconFilled: albumLike.liked
+                            iconColor: albumLike.liked ? Theme.accent : Theme.textPrimary
+                            onClicked: albumLike.toggle()
+                        }
                         PillButton { icon: "addQueue"; enabledAction: false }   // queue: M5
                         PillButton { icon: "more"; enabledAction: false }
                         Text {
@@ -314,13 +330,26 @@ Item {
                   : kind === "disc" ? 52
                   : Theme.hitTarget + padBelow + gapBelow
 
+            // flash behind a work (header and movements) the page was opened for
+            Rectangle {
+                readonly property bool on: page.flashWorkId !== 0
+                    && ((cell.kind === "work" && cell.modelData.workId === page.flashWorkId) || (cell.t !== null && cell.t.workId === page.flashWorkId))
+                x: 0; y: cell.gapAbove
+                width: parent.width; height: parent.height - cell.gapAbove - cell.gapBelow
+                color: Theme.accentTint      // square: the rows join into one block
+                opacity: on ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 500 } }
+            }
             WorkHeader {
                 visible: cell.kind === "work"
                 x: 0; y: cell.gapAbove
                 width: parent.width
+                workId: cell.modelData.workId || 0
                 title: cell.modelData.title || ""
                 catalog: cell.modelData.catalog || ""
                 meta: cell.modelData.meta || ""
+                recordings: cell.modelData.recordings || 0
+                onRecordingsClicked: page.workClicked(cell.modelData.workId)
                 current: (cell.modelData.ids || []).indexOf(page.currentTrackId) >= 0
                 onPlay: page.playWork(cell.modelData.first, cell.modelData.count)
             }
@@ -335,6 +364,7 @@ Item {
                 visible: cell.t !== null
                 x: cell.inWork ? 8 : 0; y: 0
                 width: parent.width - (cell.inWork ? 16 : 0)
+                trackId: cell.t ? cell.t.id : 0
                 number: cell.modelData.number || ""
                 title: cell.modelData.title || ""
                 indent: cell.inWork
@@ -346,5 +376,6 @@ Item {
             }
         }
     }
+    SmoothScroll { anchors.fill: list; flickable: list }
     VScrollBar { flickable: list; anchors { right: parent.right; rightMargin: 6; top: list.top; bottom: list.bottom } }
 }

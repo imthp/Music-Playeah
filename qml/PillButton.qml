@@ -10,6 +10,7 @@ Item {
     property bool primary: false
     property bool enabledAction: true
     property color iconColor: primary ? Theme.textOnAccent : Theme.textPrimary
+    property bool iconFilled: false     // a liked heart is filled
     signal clicked()
 
     implicitHeight: Theme.hitTarget
@@ -32,7 +33,7 @@ Item {
             visible: btn.icon.length > 0
             name: btn.icon; size: 18
             color: btn.iconColor
-            filled: btn.icon === "play"
+            filled: btn.iconFilled || btn.icon === "play"
             strokeWidth: btn.icon === "more" ? 3 : 1.8
         }
         Text {

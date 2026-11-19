@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/library/likes.hpp"
 #include "core/library/tag_reader.hpp"
 #include "core/text.hpp"
 
@@ -209,6 +210,7 @@ ResolveStats resolveEntities(Database& db) {
         "NOT EXISTS (SELECT 1 FROM works WHERE composer_id = artists.id) AND "
         "NOT EXISTS (SELECT 1 FROM artist_info WHERE artist_id = artists.id) AND "
         "NOT EXISTS (SELECT 1 FROM image_overrides WHERE kind = 'artist' AND ref_id = artists.id)");
+    pruneLikes(db);  // ids of deleted albums and artists can be reused: a heart must not move to another item (D48)
 
     tx.commit();
     return stats;

@@ -19,6 +19,8 @@ add_executable(core_tests
   test_work_tree.cpp
   test_works.cpp
   test_art.cpp
+  test_likes.cpp
+  test_search.cpp
 )
 # mp_taglib: the library tests write tags into generated WAV files with TagLib itself.
 target_link_libraries(core_tests PRIVATE mp_core mp_options mp_taglib Catch2::Catch2WithMain)

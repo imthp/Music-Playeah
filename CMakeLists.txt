@@ -15,7 +15,9 @@ option(MP_ASAN_NO_ANNOTATIONS
 add_library(mp_options INTERFACE)
 if(MSVC)
   # C4324 (struct padded because of alignas) is the point of alignas in FrameRing (false-sharing guard).
-  target_compile_options(mp_options INTERFACE /W4 /wd4324 /permissive- /utf-8 /Zc:__cplusplus)
+  # /external: headers included with <...> (Qt, vcpkg) are not ours: no warnings from them (Qt 6.12's qjsengine.h and
+  # qvariant.h raise C4702 in the generated QML cache code).
+  target_compile_options(mp_options INTERFACE /W4 /wd4324 /permissive- /utf-8 /Zc:__cplusplus /external:anglebrackets /external:W0)
   if(MP_ASAN)
     target_compile_options(mp_options INTERFACE /fsanitize=address)
     # ASan is incompatible with incremental linking and edit-and-continue.

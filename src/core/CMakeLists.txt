@@ -97,8 +97,14 @@ add_library(mp_core STATIC
   library/entities.hpp
   library/library.cpp
   library/library.hpp
+  library/likes.cpp
+  library/likes.hpp
   library/scanner.cpp
   library/scanner.hpp
+  library/search.cpp
+  library/search.hpp
+  library/search_load.cpp
+  library/search_load.hpp
   library/work_identity.cpp
   library/work_identity.hpp
   library/work_parser.cpp

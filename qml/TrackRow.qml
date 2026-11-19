@@ -14,6 +14,7 @@ Item {
     property bool current: false    // this track is loaded in the player
     property bool playing: false    // ... and audible
     property bool indent: false
+    property var trackId: 0         // the track the heart likes (0 = no heart yet)
     signal play()
 
     // Rich text needs &, < escaped (titles like "Bach & Sons").
@@ -76,8 +77,12 @@ Item {
         font { family: Theme.fontUi; pixelSize: Theme.sizeBody; weight: row.current ? Font.DemiBold : Font.Medium }
     }
 
-    // heart (48): likes arrive in 4b
-    Item { id: heartCell; anchors { right: playsCell.left } width: 48; height: parent.height }
+    // heart (48)
+    Item {
+        id: heartCell
+        anchors { right: playsCell.left } width: 48; height: parent.height
+        HeartButton { anchors.centerIn: parent; kind: "track"; refId: row.trackId; label: row.title }
+    }
 
     Text {
         id: playsCell
