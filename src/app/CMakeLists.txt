@@ -90,6 +90,18 @@ set_source_files_properties(${MP_QML_DIR}/LinkText.qml PROPERTIES
   QT_RESOURCE_ALIAS LinkText.qml
 )
 
+set_source_files_properties(${MP_QML_DIR}/NowPlaying.qml PROPERTIES
+  QT_RESOURCE_ALIAS NowPlaying.qml
+)
+
+set_source_files_properties(${MP_QML_DIR}/WorkTitles.js PROPERTIES
+  QT_RESOURCE_ALIAS WorkTitles.js
+)
+
+set_source_files_properties(${MP_QML_DIR}/PlayingBars.qml PROPERTIES
+  QT_RESOURCE_ALIAS PlayingBars.qml
+)
+
 qt_add_qml_module(music_playeah
   URI MusicPlayeah
   VERSION 1.0
@@ -114,6 +126,9 @@ qt_add_qml_module(music_playeah
     ${MP_QML_DIR}/WorkHeader.qml
     ${MP_QML_DIR}/AlbumPage.qml
     ${MP_QML_DIR}/LinkText.qml
+    ${MP_QML_DIR}/NowPlaying.qml
+    ${MP_QML_DIR}/WorkTitles.js
+    ${MP_QML_DIR}/PlayingBars.qml
 )
 
 qt_add_resources(music_playeah "fonts"

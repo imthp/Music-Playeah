@@ -33,6 +33,10 @@ class Player : public QObject {
     // Milestone 4: the playing track's map as given to playTracks() (artist, albumTitle, albumId, albumArtHash, albumYear, workId, ...).
     // Empty when nothing plays or the track came from openPath().
     Q_PROPERTY(QVariantMap current READ current NOTIFY currentChanged)
+    // Milestone 4 (Now Playing): the whole list given to playTracks() (maps; empty for folder playback).
+    Q_PROPERTY(QVariantList items READ items NOTIFY trackListChanged)
+    // Signal path card: lines {label, value} for Source / Resample / Output of the audible track.
+    Q_PROPERTY(QVariantList signalPath READ signalPath NOTIFY currentChanged)
     Q_PROPERTY(QString badge READ badge NOTIFY currentChanged)
     Q_PROPERTY(qint64 positionMs READ positionMs NOTIFY positionChanged)
     Q_PROPERTY(qint64 durationMs READ durationMs NOTIFY positionChanged)
@@ -54,6 +58,8 @@ public:
     int currentIndex() const { return currentIndex_; }
     QString title() const;
     QVariantMap current() const;
+    QVariantList items() const { return items_; }
+    QVariantList signalPath() const { return signalPath_; }
     QString badge() const { return badge_; }
     qint64 positionMs() const { return positionMs_; }
     qint64 durationMs() const { return durationMs_; }
@@ -108,6 +114,7 @@ private:
     int currentIndex_ = -1;
     int pendingPlay_ = -1;  // asked to play, not audible yet
     QString badge_;
+    QVariantList signalPath_;
     qint64 positionMs_ = 0;
     qint64 durationMs_ = 0;
     qreal volume_ = 0.8;

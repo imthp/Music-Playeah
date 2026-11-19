@@ -17,6 +17,43 @@ using core::audio::TrackRequest;
 
 namespace {
 
+// Now Playing's signal path card (v1: WASAPI shared, float32, resampled to the device rate; SPEC §5).
+QVariantList describeSignalPath(const core::audio::TrackInfo& info, int outputRate, const std::string& device) {
+    auto line = [](const char* label, const QString& value) {
+        return QVariantMap{{QStringLiteral("label"), QString::fromLatin1(label)}, {QStringLiteral("value"), value}};
+    };
+    const QString khz = QString::fromStdString(core::formatKilohertz(info.sampleRate));
+    const QString outKhz = QString::fromStdString(core::formatKilohertz(outputRate));
+    QStringList source{QString::fromStdString(info.codec)};
+    if (info.dsd) {
+        source << QStringLiteral("DSD%1").arg(info.sampleRate / 44'100);
+    } else {
+        if (info.bitDepth > 0) {
+            source << QStringLiteral("%1-bit").arg(info.bitDepth);
+        } else if (info.bitrateKbps > 0) {
+            source << QStringLiteral("%1 kbps").arg(info.bitrateKbps);
+        }
+        source << khz + QStringLiteral(" kHz");
+    }
+    source << (info.channels == 1 ? QStringLiteral("mono") : info.channels == 2 ? QStringLiteral("stereo")
+                                                                                 : QStringLiteral("%1 channels").arg(info.channels));
+    QString resample;
+    if (info.dsd) {
+        resample = QStringLiteral("DSD → PCM %1 kHz").arg(outKhz);
+    } else if (outputRate > 0 && info.sampleRate != outputRate) {
+        resample = QStringLiteral("%1 → %2 kHz").arg(khz, outKhz);
+    } else {
+        resample = QStringLiteral("None");
+    }
+    return {line("Source", source.join(QStringLiteral(" · "))),
+            line("Resample", resample),
+#ifdef _WIN32
+            line("Output", QString::fromStdString(device) + QStringLiteral(" · WASAPI shared · 32-bit float"))};
+#else
+            line("Output", QString::fromStdString(device) + QStringLiteral(" · shared · 32-bit float"))};
+#endif
+}
+
 const QStringList kAudioPatterns = {"*.flac", "*.mp3", "*.m4a", "*.aac", "*.alac", "*.dsf", "*.dff",
                                     "*.wav",  "*.aif", "*.aiff", "*.ogg", "*.oga", "*.opus", "*.wv", "*.ape"};
 
@@ -215,8 +252,9 @@ void Player::handleTrackStarted(std::uint64_t id) {
     currentIndex_ = static_cast<int>(id);
     pendingPlay_ = -1;
     const auto status = engine_->status();
-    badge_ = status.hasTrack && status.trackId == id ? QString::fromStdString(core::formatBadge(status.info))
-                                                      : QString();
+    const bool known = status.hasTrack && status.trackId == id;
+    badge_ = known ? QString::fromStdString(core::formatBadge(status.info)) : QString();
+    signalPath_ = known ? describeSignalPath(status.info, engine_->outputRate(), engine_->deviceName()) : QVariantList{};
     emit currentChanged();
     queueNextAfter(currentIndex_);  // keeps one track of look-ahead for gapless playback
 }

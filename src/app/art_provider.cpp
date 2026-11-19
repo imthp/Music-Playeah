@@ -1,7 +1,9 @@
 #include "art_provider.hpp"
 
 #include <QDir>
+#include <QBuffer>
 #include <QImage>
+#include <QImageReader>
 #include <QQuickImageResponse>
 #include <QQuickTextureFactory>
 #include <QRunnable>
@@ -18,7 +20,7 @@ namespace mp::app {
 
 namespace {
 
-constexpr int kSizes[] = {0, 256, 600};
+constexpr int kSizes[] = {0, 256, 600, 1200};  // 1200: Now Playing (D46)
 
 bool validHash(const QString& hash) {
     if (hash.size() != 16) {
@@ -84,16 +86,29 @@ private:
                 return;
             }
             const core::library::Bytes bytes = core::library::loadArtSource(source);
-            QImage original = QImage::fromData(bytes.data(), static_cast<qsizetype>(bytes.size()));
+            QByteArray data = QByteArray::fromRawData(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()));
+            QBuffer buffer(&data);
+            QImageReader reader(&buffer);
+            reader.setAutoTransform(true);
+            // Thumbnails: let the decoder shrink while decoding (JPEG decodes straight at 1/2, 1/4, 1/8 size), which
+            // is several times faster than decoding a 3000 px cover whole and scaling it afterwards. Never scale up.
+            if (size_ > 0) {
+                const QSize full = reader.size();
+                if (full.isValid() && (full.width() > size_ || full.height() > size_)) {
+                    reader.setScaledSize(full.scaled(size_, size_, Qt::KeepAspectRatio));
+                    reader.setQuality(100);  // smooth final scaling step
+                }
+            }
+            QImage original = reader.read();
             if (original.isNull()) {
                 error_ = QStringLiteral("cover could not be decoded: %1").arg(QString::fromStdString(source));
                 return;
             }
             if (size_ == 0) {
-                image_ = original;
+                image_ = original;  // the reader decoded into its own buffer, independent of `bytes`
                 return;
             }
-            // Never scale up; JPEG has no alpha, so flatten first.
+            // Already at most size_ (scaled while decoding); scale here only if the reader could not.
             QImage scaled = original.width() > size_ || original.height() > size_
                                 ? original.scaled(size_, size_, Qt::KeepAspectRatio, Qt::SmoothTransformation)
                                 : original;

@@ -321,6 +321,10 @@ DELETE FROM works;
 )sql");
 }
 
+// v6 (M4a, D46): the larger of embedded picture and cover file now wins. Every album's art is looked at again
+// on the next scan (new hashes make new thumbnails; old thumbnail files are simply no longer used).
+void migrateToV6(Database& db) { db.exec("UPDATE albums SET art_checked = 0;"); }
+
 struct Migration {
     int version;
     void (*apply)(Database&);
@@ -332,6 +336,7 @@ constexpr Migration kMigrations[] = {
     {3, migrateToV3},
     {4, migrateToV4},
     {5, migrateToV5},
+    {6, migrateToV6},
 };
 
 }  // namespace

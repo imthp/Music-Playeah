@@ -1,5 +1,6 @@
 import QtQuick
 import MusicPlayeah
+import "WorkTitles.js" as WorkTitles
 
 // Bottom player bar (D43, D44), measured from design/mockups/M4-*.dc.html:
 //   107 px tall, padding 0 28, three columns. Left: 72 px cover, 16 gap, text lines 3 px apart.
@@ -95,7 +96,9 @@ Rectangle {
             spacing: 3
             Text {
                 width: parent.width
-                text: Player.title.length > 0 ? Player.title : "Nothing playing"
+                // Movements read "I. Praeludio" (work title in Now Playing); other tracks their own title.
+                text: Player.title.length === 0 ? "Nothing playing"
+                      : (bar.cur.id ? WorkTitles.shortTitle(bar.cur, Player.items) : Player.title)
                 color: Theme.textPrimary; elide: Text.ElideRight; maximumLineCount: 1
                 font { family: Theme.fontUi; pixelSize: Theme.sizeBody; weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bar.nowPlayingRequested() }
@@ -109,7 +112,7 @@ Rectangle {
             }
             Text {
                 width: parent.width; visible: text.length > 0
-                text: (bar.cur.artist || "").replace(/\s*[\r\n]+\s*/g, " · ")
+                text: WorkTitles.performer(bar.cur)
                 color: Theme.textTertiary; elide: Text.ElideRight; maximumLineCount: 1
                 font { family: Theme.fontUi; pixelSize: Theme.sizeMeta }
             }

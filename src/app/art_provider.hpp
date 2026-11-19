@@ -9,7 +9,7 @@
 
 namespace mp::app {
 
-// QML image provider for album covers (D9, SPEC §6): `image://art/<hash>/<size>`, size 256, 600 or 0 (full).
+// QML image provider for album covers (D9, SPEC §6): `image://art/<hash>/<size>`, size 256, 600, 1200 (Now Playing) or 0 (full).
 // <hash> is albums.art_hash. A request first looks for the thumbnail `art/<hash>_<size>.jpg` in the app data
 // folder; if it isn't there, the cover is read from its source (embedded picture or cover file, found through
 // the albums table), scaled once and cached. All of that runs on a small thread pool, never on the UI thread,

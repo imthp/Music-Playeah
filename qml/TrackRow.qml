@@ -45,10 +45,11 @@ Item {
             color: Theme.textTertiary
             font { family: Theme.fontUi; pixelSize: Theme.sizeBody; features: ({ "tnum": 1 }) }
         }
-        Icon {
+        PlayingBars {
             anchors { right: parent.right; rightMargin: row.indent ? 10 : 14; verticalCenter: parent.verticalCenter }
             visible: row.current && !mouse.containsMouse
-            name: "bars"; size: 16; color: Theme.accent; strokeWidth: 2.2
+            running: row.current && row.playing
+            size: 14
         }
         Item {
             anchors { right: parent.right; rightMargin: row.indent ? 6 : 10; verticalCenter: parent.verticalCenter }

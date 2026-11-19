@@ -40,6 +40,18 @@ void writeFile(const fs::path& path, const Bytes& bytes) {
     f.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
 }
 
+// A JPEG header with a real SOF0 segment saying `w` x `h` (plus a seed byte so hashes differ). Not decodable,
+// but imageSize() reads only the header.
+Bytes sizedJpeg(int w, int h, std::uint8_t seed) {
+    return {0xFF, 0xD8,
+            0xFF, 0xE0, 0x00, 0x05, 'J', 'F', seed,                                  // APP0 (length 5 incl. itself)
+            0xFF, 0xC0, 0x00, 0x11, 0x08,                                            // SOF0, length 17, precision 8
+            static_cast<std::uint8_t>(h >> 8), static_cast<std::uint8_t>(h & 0xFF),
+            static_cast<std::uint8_t>(w >> 8), static_cast<std::uint8_t>(w & 0xFF),
+            0x03, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1,
+            0xFF, 0xD9};
+}
+
 TagSpec spec(const std::string& album, int no) {
     TagSpec t;
     t.title = "Track " + std::to_string(no);
@@ -78,6 +90,40 @@ TEST_CASE("art: helpers", "[art]") {
     CHECK(imageExtension({1, 2, 3}).empty());
 }
 
+TEST_CASE("art: image sizes from headers", "[art]") {
+    CHECK(imageSize(sizedJpeg(1400, 1200, 0)).width == 1400);
+    CHECK(imageSize(sizedJpeg(1400, 1200, 0)).height == 1200);
+    const Bytes png = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R',
+                       0, 0, 0x02, 0x58, 0, 0, 0x01, 0x90};  // 600 x 400
+    CHECK(imageSize(png).width == 600);
+    CHECK(imageSize(png).height == 400);
+    CHECK(imageSize({'G', 'I', 'F', '8', '9', 'a', 0x2C, 0x01, 0xC8, 0x00}).area() == 300 * 200);
+    CHECK(imageSize(fakeJpeg(1)).area() == 0);  // no SOF: unknown
+    CHECK(imageSize({}).area() == 0);
+}
+
+TEST_CASE("art: the larger of embedded picture and cover file wins (D46)", "[art][scan]") {
+    Env env;
+    // Small embedded, big cover.jpg: the file wins.
+    makeTrack(env.music / "A/1.wav", spec("BigFile", 1));
+    embed(env.music / "A/1.wav", sizedJpeg(500, 500, 1));
+    writeFile(env.music / "A/cover.jpg", sizedJpeg(1400, 1400, 2));
+    // Big embedded, small folder.jpg: the embedded picture stays.
+    makeTrack(env.music / "B/1.wav", spec("BigEmbedded", 1));
+    embed(env.music / "B/1.wav", sizedJpeg(1200, 1200, 3));
+    writeFile(env.music / "B/folder.jpg", sizedJpeg(300, 300, 4));
+    // Same size: the embedded picture stays (tie).
+    makeTrack(env.music / "C/1.wav", spec("Tie", 1));
+    embed(env.music / "C/1.wav", sizedJpeg(800, 800, 5));
+    writeFile(env.music / "C/cover.jpg", sizedJpeg(800, 800, 6));
+
+    REQUIRE(scanAndWait(env.scanner).fatalError.empty());
+    CHECK(env.art("BigFile").first == hashImage(sizedJpeg(1400, 1400, 2)));
+    CHECK(env.art("BigFile").second.rfind("file:", 0) == 0);
+    CHECK(env.art("BigEmbedded").first == hashImage(sizedJpeg(1200, 1200, 3)));
+    CHECK(env.art("Tie").first == hashImage(sizedJpeg(800, 800, 5)));
+}
+
 TEST_CASE("art: embedded picture wins, then cover files, else none", "[art][scan]") {
     Env env;
     // A: embedded picture.
@@ -86,7 +132,7 @@ TEST_CASE("art: embedded picture wins, then cover files, else none", "[art][scan
     // B: no embedded picture, cover.jpg beside the files (upper case name: Windows is case-insensitive, others not).
     makeTrack(env.music / "B/1.wav", spec("CoverFile", 1));
     writeFile(env.music / "B/Cover.JPG", fakeJpeg(2));
-    // C: both: the embedded picture is preferred.
+    // C: both, sizes unknown (fake headers): the embedded picture is kept.
     makeTrack(env.music / "C/1.wav", spec("Both", 1));
     embed(env.music / "C/1.wav", fakeJpeg(3));
     writeFile(env.music / "C/cover.jpg", fakeJpeg(4));

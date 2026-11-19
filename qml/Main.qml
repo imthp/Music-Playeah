@@ -15,6 +15,7 @@ Window {
     color: Theme.bg
 
     property string page: "albums"
+    property bool nowPlayingOpen: false
     property var albumId: 0
     property var history: []          // pages to go back to (Album page's back link, Esc)
 
@@ -39,7 +40,11 @@ Window {
     })
 
     Shortcut { sequence: "Space"; onActivated: Player.playPause() }
-    Shortcut { sequence: "Esc"; enabled: root.page === "album"; onActivated: root.back() }
+    Shortcut {
+        sequence: "Esc"
+        enabled: root.nowPlayingOpen || root.page === "album"
+        onActivated: root.nowPlayingOpen ? root.nowPlayingOpen = false : root.back()
+    }
     Shortcut { sequence: "Left"; onActivated: Player.seekBy(-5000) }
     Shortcut { sequence: "Right"; onActivated: Player.seekBy(5000) }
     Shortcut { sequence: "Ctrl+Left"; onActivated: Player.previous() }
@@ -98,6 +103,21 @@ Window {
             id: transport
             width: parent.width
             onAlbumRequested: (id) => root.openAlbum(id)
+            onNowPlayingRequested: root.nowPlayingOpen = true
         }
+    }
+
+    // Over everything, sidebar and player bar included (M4-NowPlaying). Slides up / fades in.
+    NowPlaying {
+        id: nowPlaying
+        width: parent.width
+        height: parent.height
+        y: root.nowPlayingOpen ? 0 : 40
+        opacity: root.nowPlayingOpen ? 1 : 0
+        visible: opacity > 0
+        Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+        onClose: root.nowPlayingOpen = false
+        onAlbumRequested: (id) => { root.nowPlayingOpen = false; root.openAlbum(id); }
     }
 }

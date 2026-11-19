@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <fstream>
 #include <string_view>
 #include <system_error>
@@ -211,6 +212,94 @@ std::string imageExtension(const Bytes& b) {
     return "";
 }
 
+namespace {
+
+int be16(const Bytes& b, std::size_t i) { return (b[i] << 8) | b[i + 1]; }
+int le16(const Bytes& b, std::size_t i) { return b[i] | (b[i + 1] << 8); }
+int le24(const Bytes& b, std::size_t i) { return b[i] | (b[i + 1] << 8) | (b[i + 2] << 16); }
+std::int32_t le32(const Bytes& b, std::size_t i) {
+    return static_cast<std::int32_t>(static_cast<std::uint32_t>(b[i]) | (static_cast<std::uint32_t>(b[i + 1]) << 8) |
+                                     (static_cast<std::uint32_t>(b[i + 2]) << 16) | (static_cast<std::uint32_t>(b[i + 3]) << 24));
+}
+
+ImageSize jpegSize(const Bytes& b) {
+    std::size_t i = 2;
+    while (i + 9 <= b.size()) {
+        if (b[i] != 0xFF) {
+            ++i;  // not at a marker (shouldn't happen between segments): resync
+            continue;
+        }
+        const int marker = b[i + 1];
+        if (marker == 0xFF) {  // fill byte
+            ++i;
+            continue;
+        }
+        if (marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {  // no length field
+            i += 2;
+            continue;
+        }
+        // SOF0..SOF15 except DHT (C4), JPG (C8), DAC (CC): precision, height, width.
+        if (marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC) {
+            return {be16(b, i + 7), be16(b, i + 5)};
+        }
+        if (marker == 0xDA || marker == 0xD9) {  // start of scan / end: no SOF before it
+            break;
+        }
+        i += 2 + static_cast<std::size_t>(be16(b, i + 2));
+    }
+    return {};
+}
+
+}  // namespace
+
+ImageSize imageSize(const Bytes& b) {
+    const std::string kind = imageExtension(b);
+    if (kind == "jpg") {
+        return jpegSize(b);
+    }
+    if (kind == "png" && b.size() >= 24) {
+        return {(be16(b, 16) << 16) | be16(b, 18), (be16(b, 20) << 16) | be16(b, 22)};  // IHDR, big endian
+    }
+    if (kind == "gif" && b.size() >= 10) {
+        return {le16(b, 6), le16(b, 8)};
+    }
+    if (kind == "bmp" && b.size() >= 26) {
+        return {std::abs(le32(b, 18)), std::abs(le32(b, 22))};  // height is negative for top-down bitmaps
+    }
+    if (kind == "webp" && b.size() >= 30) {
+        if (b[12] == 'V' && b[13] == 'P' && b[14] == '8' && b[15] == ' ') {
+            return {le16(b, 26) & 0x3FFF, le16(b, 28) & 0x3FFF};
+        }
+        if (b[12] == 'V' && b[13] == 'P' && b[14] == '8' && b[15] == 'L' && b.size() >= 25) {
+            const int w = 1 + (b[21] | ((b[22] & 0x3F) << 8));
+            const int h = 1 + ((b[22] >> 6) | (b[23] << 2) | ((b[24] & 0x0F) << 10));
+            return {w, h};
+        }
+        if (b[12] == 'V' && b[13] == 'P' && b[14] == '8' && b[15] == 'X') {
+            return {1 + le24(b, 24), 1 + le24(b, 27)};
+        }
+    }
+    return {};
+}
+
+namespace {
+
+// The first `limit` bytes of a file (enough for any image header).
+Bytes readHead(const fs::path& path, std::size_t limit) {
+    std::ifstream in(longPathSafe(path), std::ios::binary);
+    if (!in) {
+        return {};
+    }
+    Bytes out(limit);
+    in.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(limit));
+    out.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
+    return out;
+}
+
+constexpr std::size_t kHeaderBytes = 256 * 1024;
+
+}  // namespace
+
 Bytes loadArtSource(const std::string& source) {
     if (source.compare(0, kEmbedded.size(), kEmbedded) == 0) {
         return readEmbeddedPicture(pathFromUtf8(std::string_view(source).substr(kEmbedded.size())));
@@ -268,21 +357,28 @@ ArtStats resolveArt(Database& db, const std::atomic<bool>* cancel) {
         }
         std::string hash;
         std::string source;
+        ImageSize embeddedSize;
         for (const std::string& path : t.paths) {
             const Bytes picture = readEmbeddedPicture(pathFromUtf8(path));
             if (!picture.empty()) {
                 hash = hashImage(picture);
                 source = std::string(kEmbedded) + path;
+                embeddedSize = imageSize(picture);
                 break;
             }
         }
-        if (source.empty() && !t.paths.empty()) {
+        // A cover file beside the tracks replaces the embedded picture when it is larger (D46): embedded art is
+        // often ~500 px, a scan in the folder 1200-3000 px. Only its header is read unless it wins.
+        if (!t.paths.empty()) {
             const fs::path folder = pathFromUtf8(t.paths.front()).parent_path();
             if (const std::optional<fs::path> cover = findCoverFile(folder)) {
-                const Bytes picture = loadArtSource(std::string(kFile) + genericUtf8(*cover));
-                if (!picture.empty()) {
-                    hash = hashImage(picture);
-                    source = std::string(kFile) + genericUtf8(*cover);
+                const bool wins = source.empty() || imageSize(readHead(*cover, kHeaderBytes)).area() > embeddedSize.area();
+                if (wins) {
+                    const Bytes picture = loadArtSource(std::string(kFile) + genericUtf8(*cover));
+                    if (!picture.empty()) {
+                        hash = hashImage(picture);
+                        source = std::string(kFile) + genericUtf8(*cover);
+                    }
                 }
             }
         }
