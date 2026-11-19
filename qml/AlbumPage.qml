@@ -9,6 +9,7 @@ import MusicPlayeah
 Item {
     id: page
     property var albumId: 0
+    property string backLabel: "Albums"
     signal back()
     signal tagClicked(string tag)
     signal artistClicked(string name)
@@ -130,7 +131,7 @@ Item {
             Icon { anchors.verticalCenter: parent.verticalCenter; name: "chevronLeft"; size: 16; color: backMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Albums"
+                text: page.backLabel
                 color: backMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
                 font { family: Theme.fontUi; pixelSize: Theme.sizeBody - 1; weight: Font.Medium }
             }

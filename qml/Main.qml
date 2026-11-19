@@ -17,22 +17,60 @@ Window {
     property string page: "albums"
     property bool nowPlayingOpen: false
     property var albumId: 0
-    property var history: []          // pages to go back to (Album page's back link, Esc)
+    property string personKind: "artist"     // placeholder Artist / Composer page (4b builds the real ones)
+    property string personName: ""
+    // Back stack. Each entry is a full snapshot {page, albumId, personKind, personName, label}, so going back
+    // returns to *that* album or person, not just that kind of page (album1 → composer → album2 → back → back = album1).
+    property var history: []
 
-    function go(key) {
-        if (key === page) return;
-        history = history.concat([page]).slice(-20);
+    function snapshot() {
+        const labels = { albums: "Albums", settings: "Settings" };
+        return {
+            page: page, albumId: albumId, personKind: personKind, personName: personName,
+            label: page === "album" ? (albumPage.info.title || "Album")
+                 : page === "person" ? personName
+                 : (labels[page] || "Back")
+        };
+    }
+    readonly property string backLabel: history.length > 0 ? history[history.length - 1].label : "Albums"
+
+    // Opens a page; the current one goes on the back stack unless nothing would change.
+    function go(key, albumIdArg, kindArg, nameArg) {
+        const nextAlbum = albumIdArg !== undefined ? albumIdArg : albumId;
+        const nextKind = kindArg !== undefined ? kindArg : personKind;
+        const nextName = nameArg !== undefined ? nameArg : personName;
+        const same = key === page
+                     && (key !== "album" || nextAlbum === albumId)
+                     && (key !== "person" || (nextKind === personKind && nextName === personName));
+        if (same) return;
+        history = history.concat([snapshot()]).slice(-30);
+        albumId = nextAlbum;
+        personKind = nextKind;
+        personName = nextName;
         page = key;
     }
     function openAlbum(id) {
         if (!id) return;
-        albumId = id;
-        go("album");
+        go("album", id);
+    }
+    function openPerson(kind, name) {
+        if (!name) return;
+        nowPlayingOpen = false;
+        go("person", undefined, kind, name);
     }
     function back() {
         if (history.length === 0) { page = "albums"; return; }
-        page = history[history.length - 1];
+        const e = history[history.length - 1];
         history = history.slice(0, -1);
+        albumId = e.albumId;
+        personKind = e.personKind;
+        personName = e.personName;
+        page = e.page;
+    }
+    // Sidebar navigation starts a fresh stack.
+    function navigate(key) {
+        history = [];
+        page = key;
     }
     readonly property var placeholders: ({
         artists: "Artists", songs: "Songs", composers: "Composers", liked: "Liked",
@@ -42,7 +80,7 @@ Window {
     Shortcut { sequence: "Space"; onActivated: Player.playPause() }
     Shortcut {
         sequence: "Esc"
-        enabled: root.nowPlayingOpen || root.page === "album"
+        enabled: root.nowPlayingOpen || root.page === "album" || root.page === "person"
         onActivated: root.nowPlayingOpen ? root.nowPlayingOpen = false : root.back()
     }
     Shortcut { sequence: "Left"; onActivated: Player.seekBy(-5000) }
@@ -51,7 +89,7 @@ Window {
     Shortcut { sequence: "Ctrl+Right"; onActivated: Player.next() }
     Shortcut {
         sequence: "Ctrl+K"
-        onActivated: { root.page = "albums"; albums.focusSearch(); }   // M4 search page replaces this
+        onActivated: { root.navigate("albums"); albums.focusSearch(); }   // M4 search page replaces this
     }
 
     Column {
@@ -63,8 +101,10 @@ Window {
 
             Sidebar {
                 height: parent.height
-                current: root.page === "album" ? "albums" : root.page
-                onNavigate: (key) => { root.history = []; root.page = key; }
+                current: root.page === "album" ? "albums"
+                       : root.page === "person" ? (root.personKind === "composer" ? "composers" : "artists")
+                       : root.page
+                onNavigate: (key) => root.navigate(key)
             }
 
             Item {
@@ -78,12 +118,24 @@ Window {
                     onAlbumClicked: (album) => root.openAlbum(album.id)
                 }
                 AlbumPage {
+                    id: albumPage
                     anchors.fill: parent
                     visible: root.page === "album"
                     albumId: root.albumId
+                    backLabel: root.backLabel
                     onBack: root.back()
-                    onTagClicked: (tag) => { albums.activeTags = [tag]; root.history = []; root.page = "albums"; }
-                    // Artist / composer pages come in 4b.
+                    onTagClicked: (tag) => { albums.activeTags = [tag]; root.navigate("albums"); }
+                    onArtistClicked: (name) => root.openPerson("artist", name)
+                    onComposerClicked: (name) => root.openPerson("composer", name)
+                }
+                PersonPage {
+                    anchors.fill: parent
+                    visible: root.page === "person"
+                    kind: root.personKind
+                    name: root.personName
+                    backLabel: root.backLabel
+                    onBack: root.back()
+                    onAlbumClicked: (album) => root.openAlbum(album.id)
                 }
                 LibraryTest {
                     anchors { fill: parent; margins: 24 }
@@ -104,6 +156,7 @@ Window {
             width: parent.width
             onAlbumRequested: (id) => root.openAlbum(id)
             onNowPlayingRequested: root.nowPlayingOpen = true
+            onArtistRequested: (name) => root.openPerson("artist", name)
         }
     }
 
@@ -119,5 +172,7 @@ Window {
         Behavior on opacity { NumberAnimation { duration: 180 } }
         onClose: root.nowPlayingOpen = false
         onAlbumRequested: (id) => { root.nowPlayingOpen = false; root.openAlbum(id); }
+        onArtistRequested: (name) => root.openPerson("artist", name)
+        onComposerRequested: (name) => root.openPerson("composer", name)
     }
 }

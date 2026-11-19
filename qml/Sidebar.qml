@@ -79,6 +79,43 @@ Rectangle {
 
     Column {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 12; rightMargin: 13; bottomMargin: 16 }
+        // Last.fm status (M4-*: sidebar bottom). Placeholder until milestone 8 connects it; opens Settings.
+        Item {
+            width: parent.width
+            height: lastfmCard.height + 4
+            Rectangle {
+                id: lastfmCard
+                width: parent.width
+                height: 52
+                radius: Theme.radiusInput
+                color: lastfmMouse.containsMouse ? Theme.surfaceCard : Theme.surfaceLastfm
+                Rectangle {
+                    id: lastfmDot
+                    x: 10; anchors.verticalCenter: parent.verticalCenter
+                    width: 8; height: 8; radius: 4
+                    color: Theme.heartIdle      // grey: not connected (green Theme.success once M8 connects)
+                }
+                Column {
+                    anchors { left: lastfmDot.right; leftMargin: 10; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    spacing: 1
+                    Text {
+                        width: parent.width
+                        text: "Last.fm not connected"
+                        elide: Text.ElideRight
+                        color: Theme.textPrimary
+                        font { family: Theme.fontUi; pixelSize: Theme.sizeBody - 1; weight: Font.DemiBold }
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Scrobbling comes later"
+                        elide: Text.ElideRight
+                        color: Theme.textTertiary
+                        font { family: Theme.fontUi; pixelSize: Theme.sizeMeta }
+                    }
+                }
+                MouseArea { id: lastfmMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: bar.navigate("settings") }
+            }
+        }
         NavItem { key: "settings"; label: "Settings"; icon: "settings" }
     }
 }

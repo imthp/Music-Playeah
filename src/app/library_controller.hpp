@@ -77,12 +77,16 @@ public:
 
     // ---- Milestone 3b test queries (UI thread). Plain lists of maps; the real models come in milestone 4.
     // Albums with at least one existing track: id, title, artist, year, artHash ("" = no cover; user
-    // override first), tracks, works, instruments.
+    // override first), tracks, works, instruments, hiRes (any track 24-bit+, above 48 kHz or DSD),
+    // composers (newline-separated).
     Q_INVOKABLE QVariantList albums();
     // Milestone 4: one album for the Album page: id, title, artist, year, artHash, tracks, durationMs, works,
     // instruments, plays, genre (most common), composers (most tracks first), format ("FLAC · 24-bit / 96 kHz").
     // Empty map if there is no such album.
     Q_INVOKABLE QVariantMap album(qlonglong albumId);
+    // Every cover hash of albums with existing tracks (override first), in album sort order: what the art
+    // provider pre-makes thumbnails for after a scan.
+    QStringList artHashes();
     // Tracks of one album in disc/track order: id, path, title, artist, movementNo, movementName,
     // workTitle, workId, durationMs, codec, discNo, trackNo, composer, catalog, plays, workRecordings (albums that
     // have this work), format. `path` and `title` are what Player.playTracks() wants.

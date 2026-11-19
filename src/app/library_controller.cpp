@@ -265,6 +265,27 @@ QString formatLine(const QString& codec, int bitDepth, int sampleRate, int bitra
 
 }  // namespace
 
+QStringList LibraryController::artHashes() {
+    QStringList out;
+    if (!library_) {
+        return out;
+    }
+    try {
+        auto s = library_->db().prepare(
+            "SELECT DISTINCT COALESCE(o.image_hash, a.art_hash) AS h FROM albums a "
+            "LEFT JOIN image_overrides o ON o.kind = 'album' AND o.ref_id = a.id "
+            "WHERE COALESCE(o.image_hash, a.art_hash) IS NOT NULL "
+            "AND EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL) "
+            "ORDER BY a.sort_key");
+        while (s.step()) {
+            out << fromUtf8(s.getText(0));
+        }
+    } catch (const std::exception& e) {
+        setError(QString::fromUtf8(e.what()));
+    }
+    return out;
+}
+
 QVariantMap LibraryController::album(qlonglong albumId) {
     QVariantMap out;
     if (!library_) {
@@ -340,7 +361,13 @@ QVariantList LibraryController::albums() {
             "SELECT a.id, a.title, a.album_artist, a.year, COALESCE(o.image_hash, a.art_hash, ''), "
             "(SELECT COUNT(*) FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL), "
             "(SELECT COUNT(DISTINCT t.work_id) FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL AND t.work_id IS NOT NULL), "
-            "COALESCE((SELECT group_concat(g.tag, ', ') FROM album_tags g WHERE g.album_id = a.id AND g.kind = 'instrument'), '') "
+            "COALESCE((SELECT group_concat(g.tag, ', ') FROM album_tags g WHERE g.album_id = a.id AND g.kind = 'instrument'), ''), "
+            // Hi-res: any track above CD quality (24-bit or more, above 48 kHz, or DSD).
+            "EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL "
+            "        AND (t.bit_depth >= 24 OR t.sample_rate > 48000 OR t.codec = 'DSD')), "
+            // Composers of the album's tracks, one per line (placeholder Composer page in 4a filters on it).
+            "COALESCE((SELECT group_concat(c, char(10)) FROM (SELECT DISTINCT v.composer AS c FROM v_tracks v "
+            "          WHERE v.album_id = a.id AND v.missing_since IS NULL AND v.composer <> '')), '') "
             "FROM albums a LEFT JOIN image_overrides o ON o.kind = 'album' AND o.ref_id = a.id "
             "WHERE EXISTS (SELECT 1 FROM tracks t WHERE t.album_id = a.id AND t.missing_since IS NULL) "
             "ORDER BY a.sort_key");
@@ -352,7 +379,9 @@ QVariantList LibraryController::albums() {
                         {"artHash", fromUtf8(s.getText(4))},
                         {"tracks", static_cast<int>(s.getInt(5))},
                         {"works", static_cast<int>(s.getInt(6))},
-                        {"instruments", fromUtf8(s.getText(7))}});
+                        {"instruments", fromUtf8(s.getText(7))},
+                        {"hiRes", s.getInt(8) != 0},
+                        {"composers", fromUtf8(s.getText(9))}});
         }
     } catch (const std::exception& e) {
         setError(QString::fromUtf8(e.what()));

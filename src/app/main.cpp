@@ -4,11 +4,13 @@
 #include <QDir>
 #include <QQuickWindow>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QDebug>
 
 #include "art_provider.hpp"
 #include "core/text.hpp"
 #include "platform/window_style.hpp"
+#include "library_controller.hpp"
 #include "player.hpp"
 
 int main(int argc, char* argv[]) {
@@ -26,12 +28,13 @@ int main(int argc, char* argv[]) {
 
     QQmlApplicationEngine engine;
     // Album covers: image://art/<hash>/<size> (milestone 3b). Same database file as LibraryController uses.
+    mp::app::ArtProvider* art = nullptr;  // owned by the engine
     {
         const QString dbFile = QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
                                    .filePath(QStringLiteral("library.db"));
-        engine.addImageProvider(QStringLiteral("art"),
-                                new mp::app::ArtProvider(mp::core::pathFromUtf8(dbFile.toUtf8().toStdString()),
-                                                         mp::app::ArtProvider::defaultCacheFolder()));
+        art = new mp::app::ArtProvider(mp::core::pathFromUtf8(dbFile.toUtf8().toStdString()),
+                                       mp::app::ArtProvider::defaultCacheFolder());
+        engine.addImageProvider(QStringLiteral("art"), art);
     }
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app,
@@ -43,6 +46,15 @@ int main(int argc, char* argv[]) {
     }
     if (auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().constFirst())) {
         mp::app::platform::applyDarkTitleBar(window);
+    }
+
+    // Thumbnails in the background (milestone 4a): a few seconds after start (the window and its first covers
+    // come first), and again whenever a scan or a folder change bumps the library's revision. Covers that already
+    // have their files are skipped, so after the first run this costs one file check per album.
+    if (auto* library = engine.singletonInstance<mp::app::LibraryController*>("MusicPlayeah", "Library")) {
+        auto warm = [art, library] { art->prewarm(library->artHashes()); };
+        QTimer::singleShot(3000, library, warm);
+        QObject::connect(library, &mp::app::LibraryController::revisionChanged, library, warm);
     }
 
     // Milestone 2 test aid: `music_playeah.exe "D:\Music\Some Album"` opens and plays that folder

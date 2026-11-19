@@ -10,6 +10,8 @@ Rectangle {
     id: np
     signal close()
     signal albumRequested(var albumId)
+    signal artistRequested(string name)
+    signal composerRequested(string name)
 
     color: Theme.bg
     readonly property var cur: Player.current
@@ -225,15 +227,25 @@ Rectangle {
                         visible: text.length > 0
                         text: np.performer
                         size: Math.round(18 * body.k)
-                        // Artist page: 4b
+                        onClicked: np.artistRequested(np.performer)
                     }
-                    Text {
+                    Row {
                         width: parent.width
                         visible: np.composer.length > 0
-                        text: "composed by " + np.composer      // Composer page link: 4b
-                        elide: Text.ElideRight
-                        color: Theme.textMuted
-                        font { family: Theme.fontUi; pixelSize: Math.round(15 * body.k) }
+                        Text {
+                            id: composedBy
+                            text: "composed by "
+                            color: Theme.textMuted
+                            font { family: Theme.fontUi; pixelSize: Math.round(15 * body.k) }
+                        }
+                        LinkText {
+                            maxWidth: parent.width - composedBy.width
+                            text: np.composer
+                            size: Math.round(15 * body.k)
+                            color: Theme.textMuted
+                            font.weight: Font.Normal
+                            onClicked: np.composerRequested(np.composer)
+                        }
                     }
                     Row {
                         width: parent.width

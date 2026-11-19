@@ -12,6 +12,7 @@ Rectangle {
     id: bar
     signal nowPlayingRequested()
     signal albumRequested(var albumId)
+    signal artistRequested(string name)
 
     readonly property var cur: Player.current
     readonly property string artHash: cur.albumArtHash || ""
@@ -115,6 +116,7 @@ Rectangle {
                 text: WorkTitles.performer(bar.cur)
                 color: Theme.textTertiary; elide: Text.ElideRight; maximumLineCount: 1
                 font { family: Theme.fontUi; pixelSize: Theme.sizeMeta }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bar.artistRequested(WorkTitles.performer(bar.cur)) }
             }
             Item {
                 visible: Player.badge.length > 0

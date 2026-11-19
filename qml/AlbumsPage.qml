@@ -11,6 +11,7 @@ Item {
     property string sortKey: "title"          // title | artist | year
     property var activeTags: []               // instrument tags, all must match
     property string query: ""
+    property bool hiResOnly: false
 
     Settings {
         id: prefs
@@ -34,6 +35,7 @@ Item {
         const q = query.trim().toLowerCase();
         let list = allAlbums.filter(a => {
             if (q.length > 0 && a.title.toLowerCase().indexOf(q) < 0 && a.artist.toLowerCase().indexOf(q) < 0) return false;
+            if (hiResOnly && !a.hiRes) return false;
             const t = tagsOf(a);
             return activeTags.every(x => t.indexOf(x) >= 0);
         });
@@ -91,6 +93,8 @@ Item {
                     model: [{ k: "title", t: "A–Z" }, { k: "artist", t: "Artist" }, { k: "year", t: "Newest" }]
                     delegate: Chip { required property var modelData; text: modelData.t; selected: page.sortKey === modelData.k; onClicked: page.sortKey = modelData.k }
                 }
+                Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 1; height: 20; color: Theme.chipBorder }
+                Chip { text: "Hi-res only"; selected: page.hiResOnly; onClicked: page.hiResOnly = !page.hiResOnly }
             }
             Flickable {
                 anchors { left: sortRow.right; leftMargin: 24; right: sizeRow.left; rightMargin: 24; top: parent.top; bottom: parent.bottom }
@@ -133,7 +137,7 @@ Item {
         anchors { left: parent.left; right: parent.right; top: head.bottom; bottom: parent.bottom; leftMargin: Theme.pagePaddingSides; rightMargin: Theme.pagePaddingSides - 10; topMargin: 24 }
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        cacheBuffer: cellHeight * 2   // two rows above and below are built ahead
+        cacheBuffer: cellHeight * 4   // four rows above and below are built ahead (fewer cards to create mid-scroll)
         readonly property int gap: 24
         readonly property int cols: Math.max(1, Math.floor((width - 10) / (prefs.coverSize + gap)))
         // Spread the leftover width evenly so the grid always fills the row.

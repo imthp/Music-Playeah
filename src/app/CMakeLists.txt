@@ -102,6 +102,10 @@ set_source_files_properties(${MP_QML_DIR}/PlayingBars.qml PROPERTIES
   QT_RESOURCE_ALIAS PlayingBars.qml
 )
 
+set_source_files_properties(${MP_QML_DIR}/PersonPage.qml PROPERTIES
+  QT_RESOURCE_ALIAS PersonPage.qml
+)
+
 qt_add_qml_module(music_playeah
   URI MusicPlayeah
   VERSION 1.0
@@ -129,6 +133,7 @@ qt_add_qml_module(music_playeah
     ${MP_QML_DIR}/NowPlaying.qml
     ${MP_QML_DIR}/WorkTitles.js
     ${MP_QML_DIR}/PlayingBars.qml
+    ${MP_QML_DIR}/PersonPage.qml
 )
 
 qt_add_resources(music_playeah "fonts"
